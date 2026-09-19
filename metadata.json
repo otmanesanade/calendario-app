@@ -1,0 +1,6 @@
+{
+  "name": "Glowfy España",
+  "description": "Software SaaS de reservas online, agenda, caja y gestión de clientes para Barberías, Centros de Estética, Spas y Salones en España con integración de WhatsApp y Bizum.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
