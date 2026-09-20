@@ -20,7 +20,10 @@ import {
   AlertCircle,
   Users,
   Sparkles,
+  QrCode,
+  Share2,
 } from "lucide-react";
+import QrCodeModal from "../../components/QrCodeModal";
 
 // Días de la semana en español
 const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -58,6 +61,7 @@ export default function PublicBookingPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [showQrModal, setShowQrModal] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmedData, setConfirmedData] = useState(null);
@@ -619,12 +623,24 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
               </span>
             )}
           </div>
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
-            <Clock className="w-3 h-3 text-indigo-500" />
-            <span>
-              {barber.opening_time_morning || "10:00"} - {barber.closing_time_morning || "14:00"}
-              {barber.has_siesta !== false && ` y ${barber.opening_time_afternoon || "16:30"} - ${barber.closing_time_afternoon || "20:30"}`}
-            </span>
+          <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
+              <Clock className="w-3 h-3 text-indigo-500" />
+              <span>
+                {barber.opening_time_morning || "10:00"} - {barber.closing_time_morning || "14:00"}
+                {barber.has_siesta !== false && ` y ${barber.opening_time_afternoon || "16:30"} - ${barber.closing_time_afternoon || "20:30"}`}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 rounded-full text-[11px] font-semibold hover:bg-emerald-100 transition shadow-xs"
+              title="Ver código QR para escanear y guardar"
+            >
+              <QrCode className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>Código QR</span>
+            </button>
           </div>
         </div>
 
@@ -1081,6 +1097,15 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
           </Link>
         </div>
       </div>
+
+      {/* Modal QR Code */}
+      <QrCodeModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        businessName={barber.business_name}
+        slug={slug}
+        city={barber.city || "España"}
+      />
     </main>
   );
 }

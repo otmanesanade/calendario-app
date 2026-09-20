@@ -18,10 +18,13 @@ import {
   Store,
   Smartphone,
   Sparkles,
+  QrCode,
 } from "lucide-react";
+import QrCodeModal from "../../components/QrCodeModal";
 
 const NAV = [
   { href: "/dashboard", label: "Agenda diaria", icon: CalendarDays },
+  { href: "/dashboard/qr", label: "Código QR & Cartel", icon: QrCode },
   { href: "/dashboard/caja", label: "Caja & Finanzas", icon: Receipt },
   { href: "/dashboard/equipo", label: "Equipo & Sillones", icon: Users },
   { href: "/dashboard/clientes", label: "Clientes (CRM)", icon: Users },
@@ -34,6 +37,7 @@ export default function DashboardLayout({ children }) {
   const router = useRouter();
   const [barber, setBarber] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [pwaInstalled, setPwaInstalled] = useState(false);
 
@@ -117,39 +121,50 @@ export default function DashboardLayout({ children }) {
             </div>
           </div>
 
-          {/* Enlace público para compartir por Instagram / WhatsApp */}
+          {/* Enlace público para compartir por Instagram / WhatsApp y Código QR */}
           <div className="flex items-center gap-2">
             {barber && (
-              <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl p-1 border border-zinc-200/80 dark:border-zinc-700">
+              <>
                 <button
-                  onClick={copyPublicLink}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
-                  title="Copiar enlace de reserva para compartir con clientes"
+                  onClick={() => setShowQrModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 transition shadow-xs"
+                  title="Ver y descargar Código QR para tu local"
                 >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">¡Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Enlace clientes:</span>
-                      <span className="font-mono text-[11px] text-zinc-500">/{barber.slug}</span>
-                    </>
-                  )}
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Código QR</span>
                 </button>
 
-                <a
-                  href={`/${barber.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition"
-                  title="Abrir página pública de reserva en nueva pestaña"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
+                <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl p-1 border border-zinc-200/80 dark:border-zinc-700">
+                  <button
+                    onClick={copyPublicLink}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                    title="Copiar enlace de reserva para compartir con clientes"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Enlace clientes:</span>
+                        <span className="font-mono text-[11px] text-zinc-500">/{barber.slug}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <a
+                    href={`/${barber.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition"
+                    title="Abrir página pública de reserva en nueva pestaña"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </>
             )}
 
             <button
@@ -218,6 +233,15 @@ export default function DashboardLayout({ children }) {
           <main className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
+
+      {/* Modal QR Code */}
+      <QrCodeModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        businessName={barber?.business_name || "Mi Centro"}
+        slug={barber?.slug || "demo"}
+        city={barber?.city || "España"}
+      />
     </div>
   );
 }
