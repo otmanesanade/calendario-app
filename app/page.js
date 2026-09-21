@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import GlowfyLogo from "../components/GlowfyLogo";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Scissors,
   Calendar,

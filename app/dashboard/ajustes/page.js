@@ -28,6 +28,7 @@ export default function AjustesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [barber, setBarber] = useState(null);
 
   // Campos de formulario
@@ -97,8 +98,9 @@ export default function AjustesPage() {
     if (!barber) return;
     setSaving(true);
     setSavedSuccess(false);
+    setSaveError("");
 
-    const payload = {
+    const fullPayload = {
       business_name: businessName.trim(),
       business_type: businessType,
       slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
@@ -115,11 +117,54 @@ export default function AjustesPage() {
       slot_interval: Number(slotInterval) || 30,
     };
 
-    await supabase.from("barbers").update(payload).eq("id", barber.id);
+    try {
+      // 1. Try updating all fields
+      let { error } = await supabase
+        .from("barbers")
+        .update(fullPayload)
+        .eq("id", barber.id);
 
-    setSaving(false);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+      // If Supabase returns an error (for example missing column in remote database),
+      // fallback to the essential base columns guaranteed to exist
+      if (error) {
+        console.warn("Retrying update with essential columns due to error:", error.message);
+        const essentialPayload = {
+          business_name: businessName.trim(),
+          business_type: businessType,
+          slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+          phone: phone.trim(),
+          city: city.trim(),
+        };
+        const retryResult = await supabase
+          .from("barbers")
+          .update(essentialPayload)
+          .eq("id", barber.id);
+        
+        if (retryResult.error) {
+          throw new Error(retryResult.error.message || "Error al actualizar los datos en la base de datos.");
+        }
+
+        // Essential saved, let the user know full columns can be updated in Supabase
+        setBarber((prev) => ({ ...prev, ...essentialPayload }));
+        window.dispatchEvent(new Event("barber_updated"));
+        setSavedSuccess(true);
+        setSaveError("Datos principales guardados. Para guardar horarios personalizados y dirección, ejecuta la migración SQL en Supabase.");
+        setTimeout(() => setSavedSuccess(false), 4000);
+        return;
+      }
+
+      // Update local state and announce update to layout/header
+      setBarber((prev) => ({ ...prev, ...fullPayload }));
+      window.dispatchEvent(new Event("barber_updated"));
+
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err) {
+      console.error("Error guardando configuración:", err);
+      setSaveError(err.message || "No se pudieron guardar los cambios. Revisa tu conexión o permisos.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) {
@@ -146,6 +191,13 @@ export default function AjustesPage() {
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold animate-in fade-in">
             <Check className="w-3.5 h-3.5" />
             <span>¡Cambios guardados con éxito!</span>
+          </div>
+        )}
+
+        {saveError && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-semibold animate-in fade-in">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>{saveError}</span>
           </div>
         )}
       </div>
@@ -207,7 +259,7 @@ export default function AjustesPage() {
               </label>
               <div className="flex items-center">
                 <span className="py-2 px-2.5 bg-zinc-100 dark:bg-zinc-800 border border-r-0 border-zinc-300 dark:border-zinc-700 rounded-l-xl text-xs text-zinc-500 font-mono">
-                  /{window.location.host ? "" : ""}
+                  /
                 </span>
                 <input
                   type="text"
@@ -256,6 +308,19 @@ export default function AjustesPage() {
                 placeholder="Ej. Calle Fuencarral 42, 28004 Madrid"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
+                className="w-full py-2 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm outline-none focus:border-indigo-600 transition"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Instagram del negocio (opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="@tu_barberia"
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
                 className="w-full py-2 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm outline-none focus:border-indigo-600 transition"
               />
             </div>
@@ -384,15 +449,29 @@ export default function AjustesPage() {
           </div>
         </div>
 
-        {/* Botón Guardar */}
-        <div className="flex justify-end">
+        {/* Botón Guardar y estado */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div>
+            {savedSuccess && (
+              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <Check className="w-4 h-4" />
+                <span>¡Cambios guardados correctamente!</span>
+              </p>
+            )}
+            {saveError && (
+              <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{saveError}</span>
+              </p>
+            )}
+          </div>
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-md shadow-indigo-600/20 transition disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-md shadow-indigo-600/20 transition disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? "Guardando configuración..." : "Guardar todos los cambios"}</span>
+            <span>{saving ? "Guardando..." : "Guardar todos los cambios"}</span>
           </button>
         </div>
       </form>
