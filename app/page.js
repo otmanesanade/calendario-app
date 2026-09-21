@@ -185,18 +185,6 @@ export default function Home() {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-tr from-emerald-200/40 via-teal-100/30 to-cyan-100/30 blur-[130px] pointer-events-none -z-10 rounded-full" />
 
         <div className="text-center max-w-4xl mx-auto">
-          {/* Animated Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-emerald-200 text-slate-700 text-xs font-semibold mb-6 shadow-xs"
-          >
-            <GlowfyLogo size={18} className="rounded-md" />
-            <span className="font-bold text-emerald-700">Glowfy España</span>
-            <span className="text-slate-300">·</span>
-            <span className="text-slate-600 font-medium">El software Nº1 para barberías, salones y spas</span>
-          </motion.div>
 
           {/* Main Title */}
           <motion.h1
