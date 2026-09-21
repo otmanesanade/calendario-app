@@ -32,7 +32,10 @@ export default function DashboardQrPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       const { data } = await supabase
         .from("barbers")
@@ -47,7 +50,9 @@ export default function DashboardQrPage() {
     loadBarber();
   }, []);
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://glowfy.es";
+  const rawOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const isLocal = rawOrigin.includes("localhost") || rawOrigin.includes("127.0.0.1") || !rawOrigin;
+  const origin = isLocal && process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL : rawOrigin || "https://glowfy.es";
   const slug = barber?.slug || "estudio-marco";
   const bookingUrl = `${origin}/${slug}`;
 

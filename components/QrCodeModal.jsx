@@ -28,7 +28,9 @@ export default function QrCodeModal({
 
   if (!isOpen) return null;
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://glowfy.es";
+  const rawOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const isLocal = rawOrigin.includes("localhost") || rawOrigin.includes("127.0.0.1") || !rawOrigin;
+  const origin = isLocal && process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL : rawOrigin || "https://glowfy.es";
   const bookingUrl = `${origin}/${slug}`;
 
   function handleCopy() {

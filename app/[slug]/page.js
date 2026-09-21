@@ -116,6 +116,9 @@ export default function PublicBookingPage() {
           .eq("active", true)
           .order("price", { ascending: true });
         setServices(s || []);
+        if (s && s.length > 0) {
+          setSelectedServiceIds((prev) => (prev.length === 0 ? [s[0].id] : prev));
+        }
 
         // Citas existentes para comprobación de disponibilidad
         const { data: appts } = await supabase

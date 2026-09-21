@@ -179,10 +179,10 @@ export default function DashboardLayout({ children }) {
       </header>
 
       {/* Contenedor Principal */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-8 pb-24 md:pb-8">
         <div className="md:flex gap-8 items-start">
-          {/* Navegación lateral */}
-          <nav className="flex md:flex-col gap-1.5 md:w-60 flex-shrink-0 mb-6 md:mb-0 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+          {/* Navegación lateral para Desktop */}
+          <nav className="hidden md:flex flex-col gap-1.5 md:w-60 flex-shrink-0">
             {NAV.map((item) => {
               const active = pathname === item.href;
               const Icon = item.icon;
@@ -212,7 +212,7 @@ export default function DashboardLayout({ children }) {
             </button>
 
             {/* PWA / App Móvil Card */}
-            <div className="hidden md:block mt-6 p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/40 text-left">
+            <div className="mt-6 p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/40 text-left">
               <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs mb-1">
                 <Smartphone className="w-4 h-4" />
                 <span>App Móvil PWA</span>
@@ -229,10 +229,65 @@ export default function DashboardLayout({ children }) {
             </div>
           </nav>
 
+          {/* Navegación horizontal scrollable en móvil bajo la cabecera */}
+          <div className="md:hidden flex gap-1.5 overflow-x-auto pb-3 mb-4 scrollbar-none">
+            {NAV.map((item) => {
+              const active = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                    active
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
           {/* Contenido de cada vista */}
           <main className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
+
+      {/* Barra de Navegación Inferior Móvil (Fija) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 px-2 py-1.5 flex justify-around items-center shadow-lg">
+        {NAV.slice(0, 5).map((item) => {
+          const active = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition ${
+                active
+                  ? "text-indigo-600 dark:text-indigo-400 font-bold"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+              }`}
+            >
+              <Icon className={`w-5 h-5 mb-0.5 ${active ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
+              <span className="truncate max-w-[60px]">{item.label.split(" ")[0]}</span>
+            </Link>
+          );
+        })}
+        <Link
+          href="/dashboard/ajustes"
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition ${
+            pathname === "/dashboard/ajustes"
+              ? "text-indigo-600 dark:text-indigo-400 font-bold"
+              : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+          }`}
+        >
+          <Settings className={`w-5 h-5 mb-0.5 ${pathname === "/dashboard/ajustes" ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
+          <span className="truncate max-w-[60px]">Ajustes</span>
+        </Link>
+      </nav>
 
       {/* Modal QR Code */}
       <QrCodeModal
