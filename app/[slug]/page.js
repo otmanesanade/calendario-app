@@ -42,6 +42,37 @@ const MESES = [
   "Dic",
 ];
 
+const DEFAULT_DEMO_BARBER = {
+  id: "barber-demo-1",
+  business_name: "Estudio Marco",
+  slug: "estudio-marco",
+  business_type: "ambos",
+  phone: "+34 612 345 678",
+  city: "Madrid",
+  address: "Calle Fuencarral 42, 28004 Madrid",
+  instagram: "@estudiomarco",
+  opening_time_morning: "10:00",
+  closing_time_morning: "14:00",
+  has_siesta: true,
+  opening_time_afternoon: "16:30",
+  closing_time_afternoon: "20:30",
+  work_days: [1, 2, 3, 4, 5, 6],
+  slot_interval: 30,
+  currency: "EUR",
+};
+
+const DEFAULT_DEMO_STAFF = [
+  { id: "stf-1", name: "Marco", role: "Master Barber", avatar_color: "#4f46e5", active: true },
+  { id: "stf-2", name: "Dani", role: "Especialista Fade & Degradados", avatar_color: "#059669", active: true },
+  { id: "stf-3", name: "Carlos", role: "Barbas y Estilo Clásico", avatar_color: "#d97706", active: true },
+];
+
+const DEFAULT_DEMO_SERVICES = [
+  { id: "srv-1", name: "Corte de pelo clásico", duration_minutes: 30, price: 18, active: true },
+  { id: "srv-2", name: "Arreglo de barba tradicional", duration_minutes: 20, price: 12, active: true },
+  { id: "srv-3", name: "Corte completo y barba", duration_minutes: 45, price: 25, active: true },
+];
+
 export default function PublicBookingPage() {
   const { slug } = useParams();
   const [barber, setBarber] = useState(null);
@@ -91,43 +122,60 @@ export default function PublicBookingPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const { data: b } = await supabase
-        .from("barbers")
-        .select("*")
-        .eq("slug", slug)
-        .single();
-
-      if (b) {
-        setBarber(b);
-
-        // Staff / Equipo de barberos
-        const { data: stf } = await supabase
-          .from("barber_staff")
+      try {
+        const { data: b } = await supabase
+          .from("barbers")
           .select("*")
-          .eq("barber_id", b.id)
-          .eq("active", true);
-        setStaffList(stf || []);
+          .eq("slug", slug)
+          .single();
 
-        // Servicios
-        const { data: s } = await supabase
-          .from("services")
-          .select("*")
-          .eq("barber_id", b.id)
-          .eq("active", true)
-          .order("price", { ascending: true });
-        setServices(s || []);
-        if (s && s.length > 0) {
-          setSelectedServiceIds((prev) => (prev.length === 0 ? [s[0].id] : prev));
+        if (b) {
+          setBarber(b);
+
+          // Staff / Equipo de barberos
+          const { data: stf } = await supabase
+            .from("barber_staff")
+            .select("*")
+            .eq("barber_id", b.id)
+            .eq("active", true);
+          setStaffList(stf || []);
+
+          // Servicios
+          const { data: s } = await supabase
+            .from("services")
+            .select("*")
+            .eq("barber_id", b.id)
+            .eq("active", true)
+            .order("price", { ascending: true });
+          setServices(s || []);
+          if (s && s.length > 0) {
+            setSelectedServiceIds((prev) => (prev.length === 0 ? [s[0].id] : prev));
+          }
+
+          // Citas existentes para comprobación de disponibilidad
+          const { data: appts } = await supabase
+            .from("appointments")
+            .select("id, starts_at, ends_at, status, staff_id")
+            .eq("barber_id", b.id);
+          setExistingAppointments(appts || []);
+        } else if (!slug || slug === "estudio-marco" || slug === "demo") {
+          // Fallback para demo: siempre operativo
+          setBarber(DEFAULT_DEMO_BARBER);
+          setStaffList(DEFAULT_DEMO_STAFF);
+          setServices(DEFAULT_DEMO_SERVICES);
+          setSelectedServiceIds([DEFAULT_DEMO_SERVICES[0].id]);
+          setExistingAppointments([]);
         }
-
-        // Citas existentes para comprobación de disponibilidad
-        const { data: appts } = await supabase
-          .from("appointments")
-          .select("id, starts_at, ends_at, status, staff_id")
-          .eq("barber_id", b.id);
-        setExistingAppointments(appts || []);
+      } catch (err) {
+        if (!slug || slug === "estudio-marco" || slug === "demo") {
+          setBarber(DEFAULT_DEMO_BARBER);
+          setStaffList(DEFAULT_DEMO_STAFF);
+          setServices(DEFAULT_DEMO_SERVICES);
+          setSelectedServiceIds([DEFAULT_DEMO_SERVICES[0].id]);
+        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
   }, [slug]);
@@ -453,8 +501,28 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
           <h1 className="text-lg font-bold text-zinc-900 dark:text-white">Barbería no encontrada</h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-            El enlace solicitado no corresponde a ninguna barbería activa.
+            El enlace <span className="font-semibold text-zinc-800 dark:text-zinc-200">/{slug || ""}</span> no corresponde a ninguna barbería activa o aún no ha sido registrada.
           </p>
+          <div className="mt-6 flex flex-col gap-2.5">
+            <Link
+              href="/estudio-marco"
+              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition text-center shadow-xs"
+            >
+              Ver Demo Estudio Marco
+            </Link>
+            <Link
+              href="/login"
+              className="w-full py-2.5 px-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold rounded-xl text-xs hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition text-center"
+            >
+              Acceso a tu Panel de Gestión
+            </Link>
+            <Link
+              href="/"
+              className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 mt-1 transition"
+            >
+              ← Volver al inicio
+            </Link>
+          </div>
         </div>
       </main>
     );
