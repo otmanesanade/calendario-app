@@ -74,25 +74,35 @@ export default function AjustesPage() {
           .eq("id", user.id)
           .maybeSingle();
 
-        if (data) {
-          setBarber(data);
-          setBusinessName(data.business_name || "");
-          setBusinessType(data.business_type || "barberia");
-          setSlug(data.slug || "");
-          setPhone(data.phone || "");
-          setCity(data.city || "Madrid");
-          setAddress(data.address || "");
-          setInstagram(data.instagram || "");
-          setOpeningMorning(data.opening_time_morning || "10:00");
-          setClosingMorning(data.closing_time_morning || "14:00");
-          setHasSiesta(data.has_siesta !== false);
-          setOpeningAfternoon(data.opening_time_afternoon || "16:30");
-          setClosingAfternoon(data.closing_time_afternoon || "20:30");
-          setWorkDays(data.work_days || [1, 2, 3, 4, 5, 6]);
-          setSlotInterval(data.slot_interval || 30);
-          setLoyaltyEnabled(data.loyalty_enabled !== false);
-          setLoyaltyVisitsNeeded(data.loyalty_visits_needed || 10);
-          setLoyaltyRewardText(data.loyalty_reward_text || "Corte o servicio gratis");
+        let currentBarber = data;
+        if (!currentBarber && typeof window !== "undefined") {
+          try {
+            const localBackup = localStorage.getItem("barber_settings_backup");
+            if (localBackup) currentBarber = JSON.parse(localBackup);
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (currentBarber) {
+          setBarber(currentBarber);
+          setBusinessName(currentBarber.business_name || "");
+          setBusinessType(currentBarber.business_type || "barberia");
+          setSlug(currentBarber.slug || "");
+          setPhone(currentBarber.phone || "");
+          setCity(currentBarber.city || "Madrid");
+          setAddress(currentBarber.address || "");
+          setInstagram(currentBarber.instagram || "");
+          setOpeningMorning(currentBarber.opening_time_morning || "10:00");
+          setClosingMorning(currentBarber.closing_time_morning || "14:00");
+          setHasSiesta(currentBarber.has_siesta !== false);
+          setOpeningAfternoon(currentBarber.opening_time_afternoon || "16:30");
+          setClosingAfternoon(currentBarber.closing_time_afternoon || "20:30");
+          setWorkDays(Array.isArray(currentBarber.work_days) ? currentBarber.work_days : [1, 2, 3, 4, 5, 6]);
+          setSlotInterval(currentBarber.slot_interval || 30);
+          setLoyaltyEnabled(currentBarber.loyalty_enabled !== false);
+          setLoyaltyVisitsNeeded(currentBarber.loyalty_visits_needed || 10);
+          setLoyaltyRewardText(currentBarber.loyalty_reward_text || "Corte o servicio gratis");
         } else {
           // Si el barbero aún no existe en la tabla (ej. post-confirmación email)
           const fallbackName = user.user_metadata?.business_name || user.email?.split("@")[0] || "Mi Negocio";
@@ -165,6 +175,8 @@ export default function AjustesPage() {
       .replace(/[^a-z0-9-]/g, "-")
       .replace(/-+/g, "-");
 
+    const cleanWorkDays = Array.isArray(workDays) ? workDays : [1, 2, 3, 4, 5, 6];
+
     const fullPayload = {
       id: targetId,
       business_name: businessName.trim(),
@@ -179,7 +191,7 @@ export default function AjustesPage() {
       has_siesta: Boolean(hasSiesta),
       opening_time_afternoon: openingAfternoon || "16:30",
       closing_time_afternoon: closingAfternoon || "20:30",
-      work_days: workDays && workDays.length > 0 ? workDays : [1, 2, 3, 4, 5, 6],
+      work_days: cleanWorkDays,
       slot_interval: Number(slotInterval) || 30,
       loyalty_enabled: Boolean(loyaltyEnabled),
       loyalty_visits_needed: Number(loyaltyVisitsNeeded) || 10,
@@ -217,12 +229,26 @@ export default function AjustesPage() {
         }
 
         setBarber((prev) => ({ ...(prev || {}), ...essentialPayload }));
-        window.dispatchEvent(new CustomEvent("barber_updated", { detail: essentialPayload }));
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("barber_settings_backup", JSON.stringify(fullPayload));
+          } catch (e) {
+            // ignore
+          }
+        }
+        window.dispatchEvent(new CustomEvent("barber_updated", { detail: fullPayload }));
         setSavedSuccess(true);
         setSaveError("Datos principales guardados con éxito.");
         setTimeout(() => setSavedSuccess(false), 4000);
       } else {
         setBarber((prev) => ({ ...(prev || {}), ...fullPayload }));
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("barber_settings_backup", JSON.stringify(fullPayload));
+          } catch (e) {
+            // ignore
+          }
+        }
         window.dispatchEvent(new CustomEvent("barber_updated", { detail: fullPayload }));
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 4000);

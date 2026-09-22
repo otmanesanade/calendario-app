@@ -134,32 +134,49 @@ export default function PublicBookingPage() {
 
         if (b) {
           setBarber(b);
+        } else if (typeof window !== "undefined") {
+          try {
+            const localBackup = localStorage.getItem("barber_settings_backup");
+            if (localBackup) {
+              const parsed = JSON.parse(localBackup);
+              if (!slug || slug === parsed.slug || slug === "estudio-marco" || slug === "demo") {
+                setBarber((prev) => ({ ...(prev || DEFAULT_DEMO_BARBER), ...parsed }));
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (b || (typeof window !== "undefined" && localStorage.getItem("barber_settings_backup"))) {
+          const barberId = b?.id || "demo-barber-id";
 
           // Staff / Equipo de barberos
           const { data: stf } = await supabase
             .from("barber_staff")
             .select("*")
-            .eq("barber_id", b.id)
+            .eq("barber_id", barberId)
             .eq("active", true);
-          setStaffList(stf || []);
+          setStaffList(stf && stf.length > 0 ? stf : DEFAULT_DEMO_STAFF);
 
           // Servicios
           const { data: s } = await supabase
             .from("services")
             .select("*")
-            .eq("barber_id", b.id)
+            .eq("barber_id", barberId)
             .eq("active", true)
             .order("price", { ascending: true });
-          setServices(s || []);
-          if (s && s.length > 0) {
-            setSelectedServiceIds((prev) => (prev.length === 0 ? [s[0].id] : prev));
+          const activeServices = s && s.length > 0 ? s : DEFAULT_DEMO_SERVICES;
+          setServices(activeServices);
+          if (activeServices.length > 0) {
+            setSelectedServiceIds((prev) => (prev.length === 0 ? [activeServices[0].id] : prev));
           }
 
           // Citas existentes para comprobación de disponibilidad
           const { data: appts } = await supabase
             .from("appointments")
             .select("id, starts_at, ends_at, status, staff_id")
-            .eq("barber_id", b.id);
+            .eq("barber_id", barberId);
           setExistingAppointments(appts || []);
         } else if (!slug || slug === "estudio-marco" || slug === "demo") {
           // Fallback para demo: siempre operativo
