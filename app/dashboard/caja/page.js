@@ -38,7 +38,7 @@ export default function CajaPage() {
       .from("barbers")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
     if (b) setBarber(b);
 
     const { data: stf } = await supabase

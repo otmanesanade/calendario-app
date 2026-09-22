@@ -71,7 +71,7 @@ export default function DashboardPage() {
       .from("barbers")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
     if (b) setBarber(b);
 
     // Equipo de barberos

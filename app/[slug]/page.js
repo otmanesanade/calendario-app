@@ -127,7 +127,7 @@ export default function PublicBookingPage() {
           .from("barbers")
           .select("*")
           .eq("slug", slug)
-          .single();
+          .maybeSingle();
 
         if (b) {
           setBarber(b);

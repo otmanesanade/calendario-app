@@ -43,22 +43,36 @@ export default function DashboardLayout({ children }) {
 
   useEffect(() => {
     async function loadBarber() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/login");
+          return;
+        }
 
-      const { data } = await supabase
-        .from("barbers")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-      if (data) setBarber(data);
+        const { data } = await supabase
+          .from("barbers")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (data) setBarber(data);
+      } catch (err) {
+        console.warn("Error loading barber in layout:", err);
+      }
     }
     loadBarber();
+
+    function handleBarberUpdated(e) {
+      if (e?.detail) {
+        setBarber((prev) => ({ ...(prev || {}), ...e.detail }));
+      } else {
+        loadBarber();
+      }
+    }
+
+    window.addEventListener("barber_updated", handleBarberUpdated);
 
     // Capturar evento PWA beforeinstallprompt
     function handleBeforeInstallPrompt(e) {
@@ -68,6 +82,7 @@ export default function DashboardLayout({ children }) {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     return () => {
+      window.removeEventListener("barber_updated", handleBarberUpdated);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     };
   }, [router]);

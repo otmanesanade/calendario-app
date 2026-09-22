@@ -41,7 +41,7 @@ export default function DashboardQrPage() {
         .from("barbers")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       if (data) {
         setBarber(data);
       }

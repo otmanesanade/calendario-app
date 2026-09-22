@@ -52,38 +52,50 @@ export default function AjustesPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        const { data } = await supabase
+          .from("barbers")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (data) {
+          setBarber(data);
+          setBusinessName(data.business_name || "");
+          setBusinessType(data.business_type || "barberia");
+          setSlug(data.slug || "");
+          setPhone(data.phone || "");
+          setCity(data.city || "Madrid");
+          setAddress(data.address || "");
+          setInstagram(data.instagram || "");
+          setOpeningMorning(data.opening_time_morning || "10:00");
+          setClosingMorning(data.closing_time_morning || "14:00");
+          setHasSiesta(data.has_siesta !== false);
+          setOpeningAfternoon(data.opening_time_afternoon || "16:30");
+          setClosingAfternoon(data.closing_time_afternoon || "20:30");
+          setWorkDays(data.work_days || [1, 2, 3, 4, 5, 6]);
+          setSlotInterval(data.slot_interval || 30);
+        } else {
+          // Si el barbero aún no existe en la tabla (ej. post-confirmación email)
+          const fallbackName = user.user_metadata?.business_name || user.email?.split("@")[0] || "Mi Negocio";
+          const fallbackSlug = fallbackName.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+          setBarber({ id: user.id });
+          setBusinessName(fallbackName);
+          setSlug(fallbackSlug);
+        }
+      } catch (err) {
+        console.error("Error cargando barbero:", err);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data } = await supabase
-        .from("barbers")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (data) {
-        setBarber(data);
-        setBusinessName(data.business_name || "");
-        setBusinessType(data.business_type || "barberia");
-        setSlug(data.slug || "");
-        setPhone(data.phone || "");
-        setCity(data.city || "Madrid");
-        setAddress(data.address || "");
-        setInstagram(data.instagram || "");
-        setOpeningMorning(data.opening_time_morning || "10:00");
-        setClosingMorning(data.closing_time_morning || "14:00");
-        setHasSiesta(data.has_siesta !== false);
-        setOpeningAfternoon(data.opening_time_afternoon || "16:30");
-        setClosingAfternoon(data.closing_time_afternoon || "20:30");
-        setWorkDays(data.work_days || [1, 2, 3, 4, 5, 6]);
-        setSlotInterval(data.slot_interval || 30);
-      }
-      setLoading(false);
     }
     load();
   }, []);
@@ -98,70 +110,149 @@ export default function AjustesPage() {
 
   async function handleSave(e) {
     e.preventDefault();
-    if (!barber) return;
-    setSaving(true);
     setSavedSuccess(false);
     setSaveError("");
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const targetId = barber?.id || user?.id;
+
+    if (!targetId) {
+      setSaveError("No se ha detectado usuario activo. Por favor vuelve a iniciar sesión.");
+      return;
+    }
+
+    if (!businessName.trim()) {
+      setSaveError("Por favor introduce el Nombre comercial.");
+      return;
+    }
+
+    if (!slug.trim()) {
+      setSaveError("Por favor introduce el enlace público (URL).");
+      return;
+    }
+
+    if (!phone.trim()) {
+      setSaveError("Por favor introduce el teléfono de WhatsApp.");
+      return;
+    }
+
+    if (!city.trim()) {
+      setSaveError("Por favor introduce la ciudad.");
+      return;
+    }
+
+    setSaving(true);
+
+    let cleanPhone = phone.trim();
+    if (/^[6789]\d{8}$/.test(cleanPhone.replace(/\s+/g, ""))) {
+      cleanPhone = `+34 ${cleanPhone.replace(/\s+/g, "")}`;
+    }
+
+    const cleanSlug = (slug.trim() || businessName.trim() || "negocio")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-");
+
     const fullPayload = {
+      id: targetId,
       business_name: businessName.trim(),
-      business_type: businessType,
-      slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-      phone: phone.trim(),
+      business_type: businessType || "barberia",
+      slug: cleanSlug,
+      phone: cleanPhone,
       city: city.trim(),
       address: address.trim(),
       instagram: instagram.trim(),
-      opening_time_morning: openingMorning,
-      closing_time_morning: closingMorning,
-      has_siesta: hasSiesta,
-      opening_time_afternoon: openingAfternoon,
-      closing_time_afternoon: closingAfternoon,
-      work_days: workDays,
+      opening_time_morning: openingMorning || "10:00",
+      closing_time_morning: closingMorning || "14:00",
+      has_siesta: Boolean(hasSiesta),
+      opening_time_afternoon: openingAfternoon || "16:30",
+      closing_time_afternoon: closingAfternoon || "20:30",
+      work_days: workDays && workDays.length > 0 ? workDays : [1, 2, 3, 4, 5, 6],
       slot_interval: Number(slotInterval) || 30,
     };
 
     try {
-      // 1. Try updating all fields
+      // 1. Usar UPSERT para insertar si no existe o actualizar si ya existe
       let { error } = await supabase
         .from("barbers")
-        .update(fullPayload)
-        .eq("id", barber.id);
+        .upsert(fullPayload);
 
-      // If Supabase returns an error (for example missing column in remote database),
-      // fallback to the essential base columns guaranteed to exist
+      // Si da error de columna no existente o duplicidad de slug:
       if (error) {
-        console.warn("Retrying update with essential columns due to error:", error.message);
-        const essentialPayload = {
-          business_name: businessName.trim(),
-          business_type: businessType,
-          slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-          phone: phone.trim(),
-          city: city.trim(),
-        };
-        const retryResult = await supabase
-          .from("barbers")
-          .update(essentialPayload)
-          .eq("id", barber.id);
-        
-        if (retryResult.error) {
-          throw new Error(retryResult.error.message || "Error al actualizar los datos en la base de datos.");
+        console.warn("Retrying upsert with essential columns due to error:", error.message);
+        if (error.code === "23505" || error.message?.includes("unique")) {
+          throw new Error(`El enlace público "/${cleanSlug}" ya está en uso. Por favor escribe otro diferente.`);
         }
 
-        // Essential saved, let the user know full columns can be updated in Supabase
-        setBarber((prev) => ({ ...prev, ...essentialPayload }));
-        window.dispatchEvent(new Event("barber_updated"));
+        const essentialPayload = {
+          id: targetId,
+          business_name: businessName.trim(),
+          business_type: businessType || "barberia",
+          slug: cleanSlug,
+          phone: cleanPhone,
+          city: city.trim(),
+        };
+
+        const retryResult = await supabase
+          .from("barbers")
+          .upsert(essentialPayload);
+        
+        if (retryResult.error) {
+          throw new Error(retryResult.error.message || "Error al guardar los datos en Supabase.");
+        }
+
+        setBarber((prev) => ({ ...(prev || {}), ...essentialPayload }));
+        window.dispatchEvent(new CustomEvent("barber_updated", { detail: essentialPayload }));
         setSavedSuccess(true);
-        setSaveError("Datos principales guardados. Para guardar horarios personalizados y dirección, ejecuta la migración SQL en Supabase.");
+        setSaveError("Datos principales guardados con éxito.");
         setTimeout(() => setSavedSuccess(false), 4000);
-        return;
+      } else {
+        setBarber((prev) => ({ ...(prev || {}), ...fullPayload }));
+        window.dispatchEvent(new CustomEvent("barber_updated", { detail: fullPayload }));
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 4000);
       }
 
-      // Update local state and announce update to layout/header
-      setBarber((prev) => ({ ...prev, ...fullPayload }));
-      window.dispatchEvent(new Event("barber_updated"));
+      // Auto-asegurar al menos un personal y un servicio para que la reserva pública funcione de inmediato
+      try {
+        const { data: existingStaff } = await supabase
+          .from("barber_staff")
+          .select("id")
+          .eq("barber_id", targetId)
+          .limit(1);
 
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3500);
+        if (!existingStaff || existingStaff.length === 0) {
+          await supabase.from("barber_staff").insert({
+            barber_id: targetId,
+            name: businessName.split(" ")[0] || "Profesional 1",
+            role: businessType === "estetica" ? "Esteticista" : businessType === "spa" ? "Terapeuta" : "Barbero Principal",
+            avatar_color: "#4f46e5",
+            phone: cleanPhone,
+            active: true,
+          });
+        }
+
+        const { data: existingServices } = await supabase
+          .from("services")
+          .select("id")
+          .eq("barber_id", targetId)
+          .limit(1);
+
+        if (!existingServices || existingServices.length === 0) {
+          await supabase.from("services").insert({
+            barber_id: targetId,
+            name: businessType === "estetica" ? "Tratamiento Facial" : businessType === "spa" ? "Masaje Relajante" : "Corte Clásico",
+            duration_minutes: 30,
+            price: 15,
+            active: true,
+          });
+        }
+      } catch (provisionErr) {
+        console.warn("Auto-provisión de staff/servicio finalizada:", provisionErr);
+      }
+
     } catch (err) {
       console.error("Error guardando configuración:", err);
       setSaveError(err.message || "No se pudieron guardar los cambios. Revisa tu conexión o permisos.");
