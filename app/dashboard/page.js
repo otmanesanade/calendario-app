@@ -183,17 +183,37 @@ export default function DashboardPage() {
       phoneClean = `+34 ${phoneClean.slice(0, 3)} ${phoneClean.slice(3, 6)} ${phoneClean.slice(6)}`;
     }
 
-    // 1. Cliente
-    const { data: newClient } = await supabase
-      .from("clients")
-      .insert({
-        barber_id: user.id,
-        full_name: newClientName.trim(),
-        phone: phoneClean || "Sin teléfono",
-        notes: "Cita manual en el salón",
-      })
-      .select()
-      .single();
+    // 1. Cliente: buscar existente o crear nuevo
+    let clientId = null;
+    try {
+      if (phoneClean) {
+        const { data: existingClient } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("barber_id", user.id)
+          .eq("phone", phoneClean)
+          .maybeSingle();
+        if (existingClient?.id) {
+          clientId = existingClient.id;
+        }
+      }
+
+      if (!clientId) {
+        const { data: newClient } = await supabase
+          .from("clients")
+          .insert({
+            barber_id: user.id,
+            full_name: newClientName.trim(),
+            phone: phoneClean || "Sin teléfono",
+            notes: "Cita manual en el salón",
+          })
+          .select()
+          .maybeSingle();
+        clientId = newClient?.id || null;
+      }
+    } catch (cErr) {
+      console.warn("Aviso al gestionar cliente manual:", cErr);
+    }
 
     // 2. Horas y Servicios
     const [h, m] = newSlotTime.split(":").map(Number);
@@ -209,7 +229,7 @@ export default function DashboardPage() {
     // 3. Crear cita
     await supabase.from("appointments").insert({
       barber_id: user.id,
-      client_id: newClient?.id,
+      client_id: clientId,
       service_id: chosenServices[0]?.id,
       staff_id: newStaffId || (staffList[0] && staffList[0].id),
       starts_at: startsAt.toISOString(),

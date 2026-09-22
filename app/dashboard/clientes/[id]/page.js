@@ -31,7 +31,7 @@ export default function ClienteDetailPage() {
         .from("clients")
         .select("*")
         .eq("id", id)
-        .single();
+        .maybeSingle();
       setClient(c);
       setNotes(c?.notes || "");
 

@@ -132,6 +132,12 @@ create policy "clients_owner_all" on clients for all using (auth.uid() = barber_
 drop policy if exists "clients_public_insert" on clients;
 create policy "clients_public_insert" on clients for insert with check (true);
 
+drop policy if exists "clients_public_select" on clients;
+create policy "clients_public_select" on clients for select using (true);
+
+drop policy if exists "clients_public_update" on clients;
+create policy "clients_public_update" on clients for update using (true);
+
 -- Appointments
 drop policy if exists "appointments_owner_all" on appointments;
 create policy "appointments_owner_all" on appointments for all using (auth.uid() = barber_id) with check (auth.uid() = barber_id);

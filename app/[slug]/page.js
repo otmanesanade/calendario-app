@@ -95,6 +95,7 @@ export default function PublicBookingPage() {
   const [showQrModal, setShowQrModal] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState("");
   const [confirmedData, setConfirmedData] = useState(null);
 
   // Generate next 14 calendar days
@@ -365,6 +366,7 @@ export default function PublicBookingPage() {
     }
 
     setSubmitting(true);
+    setBookingError("");
 
     try {
       let cleanPhone = phone.trim().replace(/\s+/g, "");
@@ -372,17 +374,49 @@ export default function PublicBookingPage() {
         cleanPhone = `+34 ${cleanPhone.slice(0, 3)} ${cleanPhone.slice(3, 6)} ${cleanPhone.slice(6)}`;
       }
 
-      // 1. Crear o registrar cliente
-      const { data: client } = await supabase
-        .from("clients")
-        .insert({
-          barber_id: barber.id,
-          full_name: name.trim(),
-          phone: cleanPhone,
-          notes: notes.trim() ? `Nota cliente: ${notes.trim()}` : null,
-        })
-        .select()
-        .single();
+      // 1. Buscar si el cliente ya existe por teléfono para no duplicarlo, o crearlo
+      let clientId = null;
+      try {
+        const { data: existingClient } = await supabase
+          .from("clients")
+          .select("id, full_name, notes")
+          .eq("barber_id", barber.id)
+          .eq("phone", cleanPhone)
+          .maybeSingle();
+
+        if (existingClient?.id) {
+          clientId = existingClient.id;
+          // Actualizar notas si el cliente dejó alguna nueva
+          if (notes.trim()) {
+            const combinedNotes = existingClient.notes
+              ? `${existingClient.notes} | Nueva nota: ${notes.trim()}`
+              : `Nota cliente: ${notes.trim()}`;
+            await supabase
+              .from("clients")
+              .update({ notes: combinedNotes, full_name: name.trim() })
+              .eq("id", clientId);
+          }
+        } else {
+          // Registrar nuevo cliente en el CRM del barbero
+          const { data: newClient, error: clientErr } = await supabase
+            .from("clients")
+            .insert({
+              barber_id: barber.id,
+              full_name: name.trim(),
+              phone: cleanPhone,
+              notes: notes.trim() ? `Nota cliente: ${notes.trim()}` : null,
+            })
+            .select()
+            .maybeSingle();
+
+          if (clientErr) {
+            console.warn("Aviso al crear cliente:", clientErr);
+          }
+          clientId = newClient?.id || null;
+        }
+      } catch (clientLookupErr) {
+        console.warn("Fallo secundario cliente CRM:", clientLookupErr);
+      }
 
       // 2. Calcular inicio y fin
       const [h, m] = selectedSlot.split(":").map(Number);
@@ -409,10 +443,10 @@ export default function PublicBookingPage() {
       // Nombres de los servicios concatenados (Multi-Servicios)
       const serviceNames = selectedServices.map((s) => s.name).join(" + ");
 
-      // 3. Crear cita con Multi-Servicio, Barbero y Precio Total
-      await supabase.from("appointments").insert({
+      // 3. Crear cita vinculada al barbero y al cliente
+      const { error: apptError } = await supabase.from("appointments").insert({
         barber_id: barber.id,
-        client_id: client?.id,
+        client_id: clientId,
         service_id: selectedServices[0]?.id,
         staff_id: finalStaffId,
         starts_at: startsAt.toISOString(),
@@ -422,6 +456,11 @@ export default function PublicBookingPage() {
         total_duration: totalDuration,
         payment_status: "pendiente",
       });
+
+      if (apptError) {
+        console.error("Error insertando cita:", apptError);
+        throw new Error(apptError.message || "No se pudo registrar la reserva en la base de datos.");
+      }
 
       setConfirmedData({
         clientName: name,
@@ -438,6 +477,7 @@ export default function PublicBookingPage() {
       });
     } catch (err) {
       console.error("Error al confirmar cita:", err);
+      setBookingError(err.message || "Hubo un error al confirmar la cita. Por favor inténtalo de nuevo.");
     } finally {
       setSubmitting(false);
     }
@@ -1135,6 +1175,12 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
                 )}
               </div>
             </div>
+
+            {bookingError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                {bookingError}
+              </div>
+            )}
 
             <button
               type="submit"
