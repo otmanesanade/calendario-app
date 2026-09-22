@@ -36,6 +36,9 @@ alter table barbers add column if not exists closing_time_afternoon text default
 alter table barbers add column if not exists work_days jsonb default '[1,2,3,4,5,6]'::jsonb;
 alter table barbers add column if not exists slot_interval int default 30;
 alter table barbers add column if not exists currency text default 'EUR';
+alter table barbers add column if not exists loyalty_enabled boolean default true;
+alter table barbers add column if not exists loyalty_visits_needed int default 10;
+alter table barbers add column if not exists loyalty_reward_text text default 'Corte o servicio gratis';
 
 -- 2. Equipo / Personal / Barberos del centro
 create table if not exists barber_staff (

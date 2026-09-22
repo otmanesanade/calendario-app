@@ -22,6 +22,8 @@ import {
   Sparkles,
   QrCode,
   Share2,
+  Award,
+  Gift,
 } from "lucide-react";
 import QrCodeModal from "../../components/QrCodeModal";
 
@@ -753,6 +755,20 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
               <span>Código QR</span>
             </button>
           </div>
+
+          {/* Banner de Programa de Fidelización (10 Visitas = 1 Gratis) */}
+          {barber.loyalty_enabled !== false && (
+            <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-300/80 dark:border-amber-700/60 flex items-center justify-center gap-2 text-xs text-amber-900 dark:text-amber-200">
+              <Award className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span>
+                <strong>¡Programa de Fidelidad!</strong> Por cada{" "}
+                <strong>{barber.loyalty_visits_needed || 10} visitas</strong>, llévate{" "}
+                <strong className="text-amber-700 dark:text-amber-300">
+                  {barber.loyalty_reward_text || "1 corte gratis"}
+                </strong>.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* PASO 1: Elegir Barbero (Multi-Barbero / Sillones) */}

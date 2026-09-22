@@ -12,6 +12,8 @@ import {
   Save,
   AlertCircle,
   ExternalLink,
+  Award,
+  Gift,
 } from "lucide-react";
 
 const DIAS_LABORABLES = [
@@ -49,6 +51,11 @@ export default function AjustesPage() {
   const [workDays, setWorkDays] = useState([1, 2, 3, 4, 5, 6]);
   const [slotInterval, setSlotInterval] = useState(30);
 
+  // Programa de Fidelización (Tarjeta de sellos: Ej. 10 visitas = 1 gratis)
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(true);
+  const [loyaltyVisitsNeeded, setLoyaltyVisitsNeeded] = useState(10);
+  const [loyaltyRewardText, setLoyaltyRewardText] = useState("Corte o servicio gratis");
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -83,6 +90,9 @@ export default function AjustesPage() {
           setClosingAfternoon(data.closing_time_afternoon || "20:30");
           setWorkDays(data.work_days || [1, 2, 3, 4, 5, 6]);
           setSlotInterval(data.slot_interval || 30);
+          setLoyaltyEnabled(data.loyalty_enabled !== false);
+          setLoyaltyVisitsNeeded(data.loyalty_visits_needed || 10);
+          setLoyaltyRewardText(data.loyalty_reward_text || "Corte o servicio gratis");
         } else {
           // Si el barbero aún no existe en la tabla (ej. post-confirmación email)
           const fallbackName = user.user_metadata?.business_name || user.email?.split("@")[0] || "Mi Negocio";
@@ -171,6 +181,9 @@ export default function AjustesPage() {
       closing_time_afternoon: closingAfternoon || "20:30",
       work_days: workDays && workDays.length > 0 ? workDays : [1, 2, 3, 4, 5, 6],
       slot_interval: Number(slotInterval) || 30,
+      loyalty_enabled: Boolean(loyaltyEnabled),
+      loyalty_visits_needed: Number(loyaltyVisitsNeeded) || 10,
+      loyalty_reward_text: loyaltyRewardText.trim() || "Corte o servicio gratis",
     };
 
     try {
@@ -541,6 +554,71 @@ export default function AjustesPage() {
               <option value="60">Cada 60 minutos</option>
             </select>
           </div>
+        </div>
+
+        {/* TARJETA DE FIDELIZACIÓN (RECOMPENSA TRAS N VISITAS) */}
+        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-500" />
+              <h2 className="font-bold text-sm text-zinc-900 dark:text-white">
+                Programa de Fidelización y Tarjeta de Sellos
+              </h2>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={loyaltyEnabled}
+                onChange={(e) => setLoyaltyEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
+          </div>
+
+          <p className="text-xs text-zinc-500">
+            Fideliza a tus clientes premiándoles tras acumular un número de visitas en tu barbería (ej. a las 10 visitas, la siguiente es gratis o con descuento especial).
+          </p>
+
+          {loyaltyEnabled && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <div>
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Número de visitas para premio
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="2"
+                    max="50"
+                    value={loyaltyVisitsNeeded}
+                    onChange={(e) => setLoyaltyVisitsNeeded(e.target.value)}
+                    className="w-24 py-2 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-bold text-center outline-none focus:border-amber-500"
+                  />
+                  <span className="text-xs text-zinc-500">visitas acumuladas</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Recomendado: 10 visitas = 1 corte o servicio gratis.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Premio / Recompensa ofrecida
+                </label>
+                <div className="relative">
+                  <Gift className="w-4 h-4 text-amber-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={loyaltyRewardText}
+                    onChange={(e) => setLoyaltyRewardText(e.target.value)}
+                    placeholder="Ej. Corte clásico gratis, 50% dto., etc."
+                    className="w-full py-2 pl-9 pr-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Botón Guardar y estado */}

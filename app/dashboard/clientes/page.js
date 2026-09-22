@@ -12,10 +12,14 @@ import {
   Plus,
   User,
   Sparkles,
+  Award,
+  Gift,
 } from "lucide-react";
 
 export default function ClientesPage() {
   const [clients, setClients] = useState([]);
+  const [barber, setBarber] = useState(null);
+  const [clientVisitsMap, setClientVisitsMap] = useState({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -29,12 +33,37 @@ export default function ClientesPage() {
         setLoading(false);
         return;
       }
-      const { data } = await supabase
+
+      // Cargar configuración de fidelización de la barbería
+      const { data: bData } = await supabase
+        .from("barbers")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+      setBarber(bData);
+
+      // Cargar clientes
+      const { data: cData } = await supabase
         .from("clients")
         .select("*")
         .eq("barber_id", user.id)
         .order("full_name", { ascending: true });
-      setClients(data || []);
+      setClients(cData || []);
+
+      // Contar visitas por cliente para sellos de fidelización
+      const { data: appts } = await supabase
+        .from("appointments")
+        .select("client_id, status")
+        .eq("barber_id", user.id);
+
+      const visitsMap = {};
+      (appts || []).forEach((a) => {
+        if (a.client_id && a.status !== "cancelada" && a.status !== "no_vino") {
+          visitsMap[a.client_id] = (visitsMap[a.client_id] || 0) + 1;
+        }
+      });
+      setClientVisitsMap(visitsMap);
+
       setLoading(false);
     }
     load();
@@ -105,16 +134,40 @@ export default function ClientesPage() {
                     <div className="font-semibold text-sm text-zinc-900 dark:text-white truncate">
                       {c.full_name || "Cliente"}
                     </div>
-                    <div className="text-xs text-zinc-500 flex items-center gap-1.5 mt-0.5">
+                    <div className="text-xs text-zinc-500 flex items-center flex-wrap gap-1.5 mt-0.5">
                       <span>{c.phone}</span>
                       {c.notes && (
                         <>
                           <span>·</span>
-                          <span className="text-zinc-400 truncate max-w-[200px]">
+                          <span className="text-zinc-400 truncate max-w-[180px]">
                             {c.notes}
                           </span>
                         </>
                       )}
+                      {/* Badge Sellos / Premio Fidelización */}
+                      {(() => {
+                        const target = barber?.loyalty_visits_needed || 10;
+                        const vCount = clientVisitsMap[c.id] || 0;
+                        const stamps = vCount % target;
+                        const hasReward = vCount > 0 && stamps === 0;
+
+                        return (
+                          <>
+                            <span>·</span>
+                            {hasReward ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                                <Gift className="w-3 h-3" />
+                                <span>¡Corte Gratis Disponible!</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/40">
+                                <Award className="w-3 h-3 text-amber-500" />
+                                <span>{stamps}/{target} sellos</span>
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </Link>

@@ -25,6 +25,8 @@ import {
   Smartphone,
   Check,
   Users,
+  Award,
+  Gift,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -145,6 +147,7 @@ export default function DashboardPage() {
   // Confirmar cobro con método de pago
   async function handleConfirmPayment() {
     if (!paymentModalAppt) return;
+    const isFreeLoyalty = selectedPaymentMethod === "gratis_fidelidad";
     await supabase
       .from("appointments")
       .update({
@@ -152,6 +155,7 @@ export default function DashboardPage() {
         payment_status: "pagado",
         payment_method: selectedPaymentMethod,
         tip_amount: Number(tipAmount) || 0,
+        total_price: isFreeLoyalty ? 0 : paymentModalAppt.total_price || (paymentModalAppt.services && paymentModalAppt.services.price) || 0,
       })
       .eq("id", paymentModalAppt.id);
 
@@ -731,9 +735,20 @@ export default function DashboardPage() {
               <div className="text-xs text-zinc-500">
                 {paymentModalAppt.clients?.full_name} · {paymentModalAppt.services?.name}
               </div>
-              <div className="text-3xl font-extrabold text-zinc-900 dark:text-white mt-1">
-                {Number(paymentModalAppt.total_price || (paymentModalAppt.services && paymentModalAppt.services.price)) + Number(tipAmount || 0)} €
-              </div>
+              {selectedPaymentMethod === "gratis_fidelidad" ? (
+                <div className="mt-1">
+                  <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                    0 € <span className="text-xs font-bold uppercase tracking-wider text-amber-500 ml-1">¡GRATIS!</span>
+                  </div>
+                  <div className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
+                    🎁 Premio fidelización: 10ª visita gratis aplicada
+                  </div>
+                </div>
+              ) : (
+                <div className="text-3xl font-extrabold text-zinc-900 dark:text-white mt-1">
+                  {Number(paymentModalAppt.total_price || (paymentModalAppt.services && paymentModalAppt.services.price)) + Number(tipAmount || 0)} €
+                </div>
+              )}
             </div>
 
             {/* Selector de Método de Pago */}
@@ -741,44 +756,58 @@ export default function DashboardPage() {
               <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">
                 Elige cómo paga el cliente:
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethod("bizum")}
-                  className={`p-3 rounded-xl border text-center transition ${
+                  className={`p-2.5 rounded-xl border text-center transition ${
                     selectedPaymentMethod === "bizum"
                       ? "border-cyan-600 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 font-bold ring-1 ring-cyan-600"
                       : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 text-zinc-700 dark:text-zinc-300"
                   }`}
                 >
-                  <Smartphone className="w-5 h-5 mx-auto mb-1 text-cyan-500" />
-                  <span className="text-xs block">Bizum</span>
+                  <Smartphone className="w-4 h-4 mx-auto mb-1 text-cyan-500" />
+                  <span className="text-[11px] block">Bizum</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethod("efectivo")}
-                  className={`p-3 rounded-xl border text-center transition ${
+                  className={`p-2.5 rounded-xl border text-center transition ${
                     selectedPaymentMethod === "efectivo"
                       ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold ring-1 ring-emerald-600"
                       : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 text-zinc-700 dark:text-zinc-300"
                   }`}
                 >
-                  <Banknote className="w-5 h-5 mx-auto mb-1 text-emerald-500" />
-                  <span className="text-xs block">Efectivo</span>
+                  <Banknote className="w-4 h-4 mx-auto mb-1 text-emerald-500" />
+                  <span className="text-[11px] block">Efectivo</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedPaymentMethod("tarjeta")}
-                  className={`p-3 rounded-xl border text-center transition ${
+                  className={`p-2.5 rounded-xl border text-center transition ${
                     selectedPaymentMethod === "tarjeta"
                       ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold ring-1 ring-indigo-600"
                       : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 text-zinc-700 dark:text-zinc-300"
                   }`}
                 >
-                  <CreditCard className="w-5 h-5 mx-auto mb-1 text-indigo-500" />
-                  <span className="text-xs block">Tarjeta</span>
+                  <CreditCard className="w-4 h-4 mx-auto mb-1 text-indigo-500" />
+                  <span className="text-[11px] block">Tarjeta</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentMethod("gratis_fidelidad")}
+                  className={`p-2.5 rounded-xl border text-center transition ${
+                    selectedPaymentMethod === "gratis_fidelidad"
+                      ? "border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold ring-1 ring-amber-600"
+                      : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 text-zinc-700 dark:text-zinc-300"
+                  }`}
+                  title="Aplicar premio de fidelización: 10 visitas = 1 gratis"
+                >
+                  <Gift className="w-4 h-4 mx-auto mb-1 text-amber-500" />
+                  <span className="text-[11px] block">Fidelidad</span>
                 </button>
               </div>
             </div>

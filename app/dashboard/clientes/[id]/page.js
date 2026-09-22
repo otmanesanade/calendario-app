@@ -13,12 +13,17 @@ import {
   Scissors,
   Save,
   Check,
+  Award,
+  Gift,
+  Sparkles,
+  Star,
 } from "lucide-react";
 
 export default function ClienteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [client, setClient] = useState(null);
+  const [barber, setBarber] = useState(null);
   const [visits, setVisits] = useState([]);
   const [notes, setNotes] = useState("");
   const [savedNotes, setSavedNotes] = useState(false);
@@ -34,6 +39,15 @@ export default function ClienteDetailPage() {
         .maybeSingle();
       setClient(c);
       setNotes(c?.notes || "");
+
+      if (c?.barber_id) {
+        const { data: b } = await supabase
+          .from("barbers")
+          .select("*")
+          .eq("id", c.barber_id)
+          .maybeSingle();
+        setBarber(b);
+      }
 
       const { data: v } = await supabase
         .from("appointments")
@@ -65,6 +79,15 @@ export default function ClienteDetailPage() {
     (sum, v) => sum + (v.status !== "cancelada" ? Number(v.services?.price) || 0 : 0),
     0
   );
+
+  // Programa de fidelización: 10 visitas = 1 gratis (o configurable)
+  const loyaltyVisitsTarget = barber?.loyalty_visits_needed || 10;
+  const loyaltyRewardText = barber?.loyalty_reward_text || "Corte o servicio gratis";
+  const completedVisitsCount = visits.filter((v) => v.status === "completada" || v.status === "confirmada").length;
+  // Sellos acumulados en el ciclo actual
+  const currentStamps = completedVisitsCount % loyaltyVisitsTarget;
+  const isRewardEarned = completedVisitsCount > 0 && currentStamps === 0;
+  const rewardsClaimedCount = Math.floor(completedVisitsCount / loyaltyVisitsTarget);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -147,6 +170,118 @@ export default function ClienteDetailPage() {
               {totalSpent.toFixed(0)} €
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* TARJETA DE FIDELIDAD (10 VISITAS = 1 GRATIS) */}
+      <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-950/40 dark:via-zinc-900 dark:to-zinc-900 p-6 rounded-2xl border border-amber-300/80 dark:border-amber-800/60 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <span>Tarjeta de Fidelidad</span>
+                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 rounded-full font-bold">
+                  {loyaltyVisitsTarget} Visitas = 1 Gratis
+                </span>
+              </h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Premio configurado: <strong className="text-zinc-800 dark:text-zinc-200">{loyaltyRewardText}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right sm:text-right">
+            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+              Progreso actual:{" "}
+            </span>
+            <span className="text-base font-extrabold text-amber-600 dark:text-amber-400">
+              {isRewardEarned ? loyaltyVisitsTarget : currentStamps} / {loyaltyVisitsTarget}
+            </span>
+          </div>
+        </div>
+
+        {/* Sellos visuales interactivos (1 al 10) */}
+        <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 pt-2">
+          {Array.from({ length: loyaltyVisitsTarget }).map((_, idx) => {
+            const stampNum = idx + 1;
+            const isCompletedStamp = isRewardEarned
+              ? true
+              : idx < currentStamps;
+            const isLastFreeStamp = stampNum === loyaltyVisitsTarget;
+
+            return (
+              <div
+                key={stampNum}
+                className={`flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border text-center transition-all ${
+                  isCompletedStamp
+                    ? isLastFreeStamp
+                      ? "bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-400/50 animate-pulse"
+                      : "bg-amber-500 text-white border-amber-600 shadow-xs"
+                    : isLastFreeStamp
+                    ? "bg-white dark:bg-zinc-800/80 border-dashed border-amber-400 dark:border-amber-700 text-amber-600 dark:text-amber-400"
+                    : "bg-white dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-zinc-400"
+                }`}
+                title={
+                  isLastFreeStamp
+                    ? `Visita ${stampNum}: ¡GRATIS!`
+                    : `Sello ${stampNum} de ${loyaltyVisitsTarget}`
+                }
+              >
+                {isCompletedStamp ? (
+                  isLastFreeStamp ? (
+                    <Gift className="w-5 h-5 mb-0.5" />
+                  ) : (
+                    <Check className="w-4 h-4 mb-0.5" />
+                  )
+                ) : isLastFreeStamp ? (
+                  <Gift className="w-5 h-5 mb-0.5 opacity-80" />
+                ) : (
+                  <Star className="w-4 h-4 mb-0.5 opacity-40" />
+                )}
+                <span className="text-[10px] font-bold leading-tight">
+                  {isLastFreeStamp ? "GRATIS" : `#${stampNum}`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Notificación si ya alcanzó la décima visita o las que le faltan */}
+        <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+          {isRewardEarned ? (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                <span>
+                  🎉 ¡Este cliente ha completado <strong>{loyaltyVisitsTarget} visitas</strong>! Tiene derecho a su <strong>{loyaltyRewardText}</strong>.
+                </span>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                Premio Activo
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
+              <span className="flex items-center gap-1.5">
+                <Scissors className="w-3.5 h-3.5 text-amber-500" />
+                <span>
+                  Le faltan{" "}
+                  <strong className="text-zinc-900 dark:text-white font-bold">
+                    {loyaltyVisitsTarget - currentStamps} visita(s)
+                  </strong>{" "}
+                  para recibir su {loyaltyRewardText}.
+                </span>
+              </span>
+              {rewardsClaimedCount > 0 && (
+                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                  🏆 Premios anteriores obtenidos: {rewardsClaimedCount}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
