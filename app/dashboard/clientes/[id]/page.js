@@ -252,16 +252,31 @@ export default function ClienteDetailPage() {
         {/* Notificación si ya alcanzó la décima visita o las que le faltan */}
         <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
           {isRewardEarned ? (
-            <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                 <span>
                   🎉 ¡Este cliente ha completado <strong>{loyaltyVisitsTarget} visitas</strong>! Tiene derecho a su <strong>{loyaltyRewardText}</strong>.
                 </span>
               </div>
-              <span className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                Premio Activo
-              </span>
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                {cleanPhone && (
+                  <a
+                    href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                      `¡Enhorabuena ${client.full_name || ""}! 🎉 Has completado tus ${loyaltyVisitsTarget} visitas con nosotros y te has ganado tu ${loyaltyRewardText}. ¡Pásate cuando quieras o reserva tu cita para disfrutarlo!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                    <span>Avisar por WhatsApp</span>
+                  </a>
+                )}
+                <span className="px-2.5 py-1 bg-emerald-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                  Premio Listo
+                </span>
+              </div>
             </div>
           ) : (
             <div className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">

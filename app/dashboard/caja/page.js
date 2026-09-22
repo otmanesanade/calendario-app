@@ -15,6 +15,8 @@ import {
   Users,
   Printer,
   CheckCircle2,
+  Gift,
+  Award,
 } from "lucide-react";
 
 export default function CajaPage() {
@@ -88,6 +90,7 @@ export default function CajaPage() {
     totalBizum,
     totalEfectivo,
     totalTarjeta,
+    totalGratisFidelidad,
     totalPropinas,
     citasCobradas,
     citasPendientes,
@@ -97,6 +100,7 @@ export default function CajaPage() {
     let bizum = 0;
     let efectivo = 0;
     let tarjeta = 0;
+    let gratisFidelidadCount = 0;
     let propinas = 0;
     let cobradas = 0;
     let pendientes = 0;
@@ -114,6 +118,7 @@ export default function CajaPage() {
 
         if (method === "bizum") bizum += price;
         else if (method === "tarjeta") tarjeta += price;
+        else if (method === "gratis_fidelidad") gratisFidelidadCount++;
         else efectivo += price; // Default o efectivo
 
         // Agrupar por barbero
@@ -143,6 +148,7 @@ export default function CajaPage() {
       totalBizum: bizum,
       totalEfectivo: efectivo,
       totalTarjeta: tarjeta,
+      totalGratisFidelidad: gratisFidelidadCount,
       totalPropinas: propinas,
       citasCobradas: cobradas,
       citasPendientes: pendientes,
@@ -246,6 +252,28 @@ export default function CajaPage() {
           </div>
           <div className="text-[10px] text-zinc-400 mt-1">Datáfono / Redsys</div>
         </div>
+
+        {/* Premios Fidelidad Entregados */}
+        {totalGratisFidelidad > 0 && (
+          <div className="bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/60 shadow-sm col-span-2 sm:col-span-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
+                <Gift className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
+                  Cortes Gratis de Fidelización Entregados Hoy
+                </span>
+                <span className="text-[11px] text-amber-700/80 dark:text-amber-400">
+                  Recompensas de clientes que completaron sus 10 sellos
+                </span>
+              </div>
+            </div>
+            <div className="text-xl font-extrabold text-amber-600 dark:text-amber-400">
+              {totalGratisFidelidad} {totalGratisFidelidad === 1 ? "premio" : "premios"}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Desglose por Barbero / Comisiones */}
@@ -320,6 +348,8 @@ export default function CajaPage() {
                           ? "bg-cyan-100 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400"
                           : method === "tarjeta"
                           ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400"
+                          : method === "gratis_fidelidad"
+                          ? "bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400"
                           : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
                       }`}
                     >
@@ -327,6 +357,8 @@ export default function CajaPage() {
                         <Smartphone className="w-4 h-4" />
                       ) : method === "tarjeta" ? (
                         <CreditCard className="w-4 h-4" />
+                      ) : method === "gratis_fidelidad" ? (
+                        <Gift className="w-4 h-4" />
                       ) : (
                         <Banknote className="w-4 h-4" />
                       )}
@@ -347,16 +379,26 @@ export default function CajaPage() {
 
                   <div className="text-right">
                     <div className="font-bold text-sm text-zinc-900 dark:text-white">
-                      {price} €
+                      {method === "gratis_fidelidad" ? (
+                        <span className="text-amber-600 dark:text-amber-400">0 € (Gratis)</span>
+                      ) : (
+                        `${price} €`
+                      )}
                     </div>
                     <span
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                         isPaid
-                          ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                          ? method === "gratis_fidelidad"
+                            ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300"
+                            : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
                           : "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300"
                       }`}
                     >
-                      {isPaid ? `Cobrado (${method})` : "Pendiente de cobro"}
+                      {isPaid
+                        ? method === "gratis_fidelidad"
+                          ? "Premio Fidelidad"
+                          : `Cobrado (${method})`
+                        : "Pendiente de cobro"}
                     </span>
                   </div>
                 </div>
