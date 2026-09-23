@@ -18,6 +18,8 @@ import {
   Moon,
   Sun,
   Sparkles,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 
 const DIAS_LABORABLES = [
@@ -70,6 +72,12 @@ export default function AjustesPage() {
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(true);
   const [loyaltyVisitsNeeded, setLoyaltyVisitsNeeded] = useState(10);
   const [loyaltyRewardText, setLoyaltyRewardText] = useState("Corte o servicio gratis");
+
+  // Reseñas de Google (Google Reviews)
+  const [googleReviewUrl, setGoogleReviewUrl] = useState("");
+  const [googleReviewMessage, setGoogleReviewMessage] = useState(
+    "¡Hola {nombre}! Muchas gracias por tu visita a {negocio} 💈✂️ ¿Qué tal te pareció el resultado? Nos ayudarías mucho dejándonos tu valoración en Google (sólo 15 segundos): {enlace} ⭐ ¡Muchísimas gracias!"
+  );
 
   // Carga inicial y combinación con copias locales para persistencia absoluta
   const loadData = useCallback(async () => {
@@ -128,6 +136,10 @@ export default function AjustesPage() {
         setLoyaltyEnabled(mergedBarber.loyalty_enabled !== false);
         setLoyaltyVisitsNeeded(mergedBarber.loyalty_visits_needed || 10);
         setLoyaltyRewardText(mergedBarber.loyalty_reward_text || "Corte o servicio gratis");
+        setGoogleReviewUrl(mergedBarber.google_review_url || "");
+        if (mergedBarber.google_review_message) {
+          setGoogleReviewMessage(mergedBarber.google_review_message);
+        }
       } else {
         const fallbackName = user?.email?.split("@")[0] || "Mi Negocio";
         const fallbackSlug = fallbackName.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
@@ -267,6 +279,8 @@ export default function AjustesPage() {
       loyalty_enabled: Boolean(loyaltyEnabled),
       loyalty_visits_needed: Number(loyaltyVisitsNeeded) || 10,
       loyalty_reward_text: loyaltyRewardText.trim() || "Corte o servicio gratis",
+      google_review_url: googleReviewUrl.trim(),
+      google_review_message: googleReviewMessage.trim(),
     };
 
     try {
@@ -866,6 +880,104 @@ export default function AjustesPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* SECCIÓN 4: RESEÑAS DE GOOGLE (GOOGLE REVIEWS & REPUTACIÓN) */}
+        <div className="bg-white dark:bg-zinc-900 p-5 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                <Star className="w-5 h-5 fill-amber-400 text-amber-500" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-white flex items-center gap-2">
+                  <span>Reseñas de Google (Google Reviews)</span>
+                  <span className="text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                    + Clientes en Maps
+                  </span>
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Envía a tus clientes un WhatsApp con tu enlace a Google Reviews cuando terminen su corte o servicio.
+                </p>
+              </div>
+            </div>
+
+            {googleReviewUrl && (
+              <a
+                href={googleReviewUrl.startsWith("http") ? googleReviewUrl : `https://${googleReviewUrl}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+              >
+                <span>Probar enlace</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                Enlace directo a tus reseñas de Google (Google Business Profile)
+              </label>
+              <div className="relative">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400 absolute left-3 top-2.5" />
+                <input
+                  type="url"
+                  value={googleReviewUrl}
+                  onChange={(e) => setGoogleReviewUrl(e.target.value)}
+                  placeholder="https://g.page/r/.../review o https://maps.app.goo.gl/..."
+                  className="w-full py-2 pl-9 pr-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm outline-none focus:border-amber-500 font-mono text-xs"
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500 mt-1.5 flex items-center gap-1.5">
+                <span>💡</span>
+                <span>
+                  <strong>¿Cómo conseguirlo?</strong> Abre Google Maps en tu móvil o entra en tu perfil de Google Business &gt; Pulsa en <em>&quot;Solicitar reseñas&quot;</em> &gt; Copia y pega el enlace aquí.
+                </span>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                Mensaje personalizado para enviar por WhatsApp
+              </label>
+              <div className="relative">
+                <textarea
+                  rows={3}
+                  value={googleReviewMessage}
+                  onChange={(e) => setGoogleReviewMessage(e.target.value)}
+                  placeholder="¡Hola {nombre}! Muchas gracias por tu visita a {negocio}..."
+                  className="w-full p-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[11px] text-zinc-500">
+                <span>Etiquetas automáticas:</span>
+                <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-mono text-zinc-700 dark:text-zinc-300 font-semibold">{'{nombre}'}</span>
+                <span>= Nombre cliente</span>
+                <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-mono text-zinc-700 dark:text-zinc-300 font-semibold">{'{negocio}'}</span>
+                <span>= Tu Salón</span>
+                <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-mono text-zinc-700 dark:text-zinc-300 font-semibold">{'{enlace}'}</span>
+                <span>= Tu enlace de Google</span>
+              </div>
+            </div>
+
+            {/* Vista previa estilo WhatsApp */}
+            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/40 rounded-xl border border-zinc-200 dark:border-zinc-700/60">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block mb-2">
+                Vista previa del mensaje en WhatsApp
+              </span>
+              <div className="max-w-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3 rounded-2xl rounded-tl-sm text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed shadow-xs">
+                {(googleReviewMessage || "")
+                  .replace(/{nombre}/g, "Alejandro")
+                  .replace(/{negocio}/g, businessName || "Estudio Marco")
+                  .replace(/{enlace}/g, googleReviewUrl || "https://g.page/r/ejemplo/review")}
+                <div className="text-[10px] text-zinc-400 text-right mt-1 font-sans">
+                  14:32 ✓✓
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Botón Guardar todos los cambios */}

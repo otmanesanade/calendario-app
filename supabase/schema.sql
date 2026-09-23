@@ -39,6 +39,8 @@ alter table barbers add column if not exists currency text default 'EUR';
 alter table barbers add column if not exists loyalty_enabled boolean default true;
 alter table barbers add column if not exists loyalty_visits_needed int default 10;
 alter table barbers add column if not exists loyalty_reward_text text default 'Corte o servicio gratis';
+alter table barbers add column if not exists google_review_url text;
+alter table barbers add column if not exists google_review_message text;
 
 -- 2. Equipo / Personal / Barberos del centro
 create table if not exists barber_staff (

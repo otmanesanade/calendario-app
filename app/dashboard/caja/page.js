@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   Gift,
   Award,
+  Star,
+  MessageCircle,
 } from "lucide-react";
 
 export default function CajaPage() {
@@ -82,6 +84,28 @@ export default function CajaPage() {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + 1);
     setSelectedDate(d);
+  }
+
+  // Generar enlace WhatsApp con mensaje de reseña de Google
+  function getWhatsAppReviewUrl(appt) {
+    if (!appt) return "#";
+    const rawPhone = (appt.clients?.phone || appt.client_phone || "").replace(/[^0-9]/g, "");
+    if (!rawPhone) return "#";
+
+    const clientName = appt.clients?.full_name || appt.client_name || "amigo";
+    const salonName = barber?.business_name || "nuestro salón";
+    const reviewLink = barber?.google_review_url || "https://g.page/r/ejemplo/review";
+
+    const template =
+      barber?.google_review_message ||
+      "¡Hola {nombre}! Muchas gracias por tu visita a {negocio} 💈✂️ ¿Qué tal te pareció el resultado? Nos ayudarías mucho dejándonos tu valoración en Google (sólo 15 segundos): {enlace} ⭐ ¡Muchísimas gracias!";
+
+    const text = template
+      .replace(/{nombre}/g, clientName)
+      .replace(/{negocio}/g, salonName)
+      .replace(/{enlace}/g, reviewLink);
+
+    return `https://wa.me/${rawPhone}?text=${encodeURIComponent(text)}`;
   }
 
   // Cálculos financieros
@@ -400,6 +424,21 @@ export default function CajaPage() {
                           : `Cobrado (${method})`
                         : "Pendiente de cobro"}
                     </span>
+
+                    {isPaid && (a.clients?.phone || a.client_phone) && (
+                      <div className="mt-1.5 flex justify-end">
+                        <a
+                          href={getWhatsAppReviewUrl(a)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px] font-bold transition shadow-xs"
+                          title="Pedir reseña de Google al cliente por WhatsApp"
+                        >
+                          <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                          <span>Pedir Reseña ⭐</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
