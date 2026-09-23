@@ -491,9 +491,14 @@ export default function RegisterPage() {
 
             {/* Ventajas incluidas */}
             <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-3 text-[11px] text-zinc-600 dark:text-zinc-400 space-y-1.5 border border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Incluye 30 días de prueba gratuita sin permanencia</span>
+              <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  30 días de prueba gratuita sin permanencia
+                </span>
+                <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">
+                  29 €/mes o 290 €/año (IVA inc.)
+                </span>
               </div>
               <div className="flex items-center gap-1.5 text-zinc-500">
                 <span>✓ Sin comisiones por reserva</span>
