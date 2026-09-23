@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 import {
   Calendar,
@@ -138,7 +139,10 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
 
-    function handleBarberUpdate() {
+    function handleBarberUpdate(e) {
+      if (e?.detail) {
+        setBarber((prev) => ({ ...(prev || {}), ...e.detail }));
+      }
       loadData();
     }
     window.addEventListener("barber_updated", handleBarberUpdate);
@@ -374,26 +378,97 @@ export default function DashboardPage() {
       };
     }, [appointments]);
 
-  // Lista de horas para el Timeline según horario configurado del barbero
-  const timelineHours = useMemo(() => {
+  // Horarios de apertura, cierre e intervalos según la configuración del salón en Ajustes
+  const {
+    timelineHours,
+    scheduleOpeningMins,
+    scheduleClosingMins,
+    siestaStartMins,
+    siestaEndMins,
+    isSiestaActive,
+  } = useMemo(() => {
+    const hasSiesta = barber?.has_siesta !== false;
+    const morningOpenStr = barber?.opening_time_morning || "10:00";
+    const morningCloseStr = barber?.closing_time_morning || "14:00";
+    const afternoonOpenStr = barber?.opening_time_afternoon || "16:30";
+    const afternoonCloseStr =
+      barber?.closing_time_afternoon || (hasSiesta ? "20:30" : morningCloseStr);
+
+    function parseToMins(str) {
+      if (!str || typeof str !== "string") return 0;
+      const parts = str.split(":").map(Number);
+      return (parts[0] || 0) * 60 + (parts[1] || 0);
+    }
+
+    function formatFromMins(mins) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    const interval = Math.max(10, Number(barber?.slot_interval) || 30); // 15, 20, 30, 45, 60
+
+    let startMins = parseToMins(morningOpenStr);
+    let endMins = hasSiesta
+      ? parseToMins(afternoonCloseStr)
+      : parseToMins(morningCloseStr || afternoonCloseStr);
+
+    const sStartMins = parseToMins(morningCloseStr);
+    const sEndMins = parseToMins(afternoonOpenStr);
+
+    // Si existen citas en este día fuera del horario oficial, ampliamos dinámicamente
+    // para que ninguna cita existente quede oculta en la rejilla
+    appointments.forEach((a) => {
+      if (a.starts_at) {
+        const d = new Date(a.starts_at);
+        const aMins = d.getHours() * 60 + d.getMinutes();
+        if (aMins < startMins) {
+          startMins = Math.floor(aMins / interval) * interval;
+        }
+      }
+      if (a.ends_at) {
+        const d = new Date(a.ends_at);
+        const aMins = d.getHours() * 60 + d.getMinutes();
+        if (aMins > endMins) {
+          endMins = Math.ceil(aMins / interval) * interval;
+        }
+      }
+    });
+
+    if (endMins <= startMins) {
+      endMins = startMins + 8 * 60;
+    }
+
     const hours = [];
-    let startH = 9;
-    let endH = 21;
-    if (barber?.opening_time_morning) {
-      const h = parseInt(barber.opening_time_morning.split(":")[0], 10);
-      if (!isNaN(h)) startH = Math.min(startH, h);
+    for (let t = startMins; t <= endMins; t += interval) {
+      hours.push(formatFromMins(t));
     }
-    const closeTime = barber?.closing_time_afternoon || barber?.closing_time_morning;
-    if (closeTime) {
-      const h = parseInt(closeTime.split(":")[0], 10);
-      if (!isNaN(h)) endH = Math.max(endH, h);
-    }
-    for (let h = startH; h <= endH; h++) {
-      hours.push(`${String(h).padStart(2, "0")}:00`);
-      hours.push(`${String(h).padStart(2, "0")}:30`);
-    }
-    return hours;
-  }, [barber?.opening_time_morning, barber?.closing_time_afternoon, barber?.closing_time_morning]);
+
+    return {
+      timelineHours: hours,
+      scheduleOpeningMins: startMins,
+      scheduleClosingMins: endMins,
+      siestaStartMins: sStartMins,
+      siestaEndMins: sEndMins,
+      isSiestaActive: hasSiesta && sEndMins > sStartMins,
+    };
+  }, [
+    barber?.opening_time_morning,
+    barber?.closing_time_morning,
+    barber?.has_siesta,
+    barber?.opening_time_afternoon,
+    barber?.closing_time_afternoon,
+    barber?.slot_interval,
+    appointments,
+  ]);
+
+  // Comprobar si una hora determinada cae en la pausa de siesta
+  function isSlotInSiesta(hourStr) {
+    if (!isSiestaActive) return false;
+    const parts = hourStr.split(":").map(Number);
+    const mins = (parts[0] || 0) * 60 + (parts[1] || 0);
+    return mins >= siestaStartMins && mins < siestaEndMins;
+  }
 
   const isCurrentDayClosed = useMemo(() => {
     const activeWorkDays = barber?.work_days && Array.isArray(barber.work_days)
@@ -439,9 +514,40 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <p className="text-xs text-zinc-500 mt-1">
-            Revisa las citas organizadas por barbero, cobra por Bizum/Efectivo y añade citas manuales.
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-500">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              {isCurrentDayClosed ? (
+                <span className="font-semibold text-rose-600 dark:text-rose-400">
+                  Día de descanso (Salón cerrado hoy)
+                </span>
+              ) : barber?.has_siesta !== false ? (
+                <span>
+                  Horario de hoy:{" "}
+                  <strong className="text-zinc-800 dark:text-zinc-200">
+                    {barber?.opening_time_morning || "10:00"} - {barber?.closing_time_morning || "14:00"}
+                  </strong>{" "}
+                  y{" "}
+                  <strong className="text-zinc-800 dark:text-zinc-200">
+                    {barber?.opening_time_afternoon || "16:30"} - {barber?.closing_time_afternoon || "20:30"}
+                  </strong>
+                </span>
+              ) : (
+                <span>
+                  Horario continuo:{" "}
+                  <strong className="text-zinc-800 dark:text-zinc-200">
+                    {barber?.opening_time_morning || "10:00"} - {barber?.closing_time_morning || barber?.closing_time_afternoon || "20:30"}
+                  </strong>
+                </span>
+              )}
+            </span>
+            <Link
+              href="/dashboard/ajustes"
+              className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold text-[11px] inline-flex items-center gap-0.5"
+            >
+              Configurar horario ⚙️
+            </Link>
+          </div>
         </div>
 
         {/* Selector de fecha */}
@@ -488,7 +594,7 @@ export default function DashboardPage() {
           </div>
 
           <button
-            onClick={() => handleOpenSlot(null, "11:00")}
+            onClick={() => handleOpenSlot(null, barber?.opening_time_morning || "10:00")}
             className="flex items-center gap-1.5 py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 transition"
           >
             <Plus className="w-4 h-4" />
@@ -496,6 +602,31 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Alerta si el día seleccionado está marcado como cerrado en Ajustes */}
+      {isCurrentDayClosed && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-xs text-amber-950 dark:text-amber-200 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center justify-center text-lg font-bold shrink-0">
+              ☕
+            </div>
+            <div>
+              <p className="font-bold text-sm text-amber-950 dark:text-amber-100">
+                Día de descanso semanal (Salón cerrado)
+              </p>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/80 mt-0.5">
+                Según tu horario en <strong>Ajustes del Salón</strong>, tu salón no abre este día de la semana. Los clientes no pueden reservar online hoy en tu web.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/ajustes"
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 text-xs font-bold text-amber-950 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-zinc-800 transition whitespace-nowrap self-start sm:self-auto shadow-xs"
+          >
+            Modificar días en Ajustes ⚙️
+          </Link>
+        </div>
+      )}
 
       {/* Métricas rápidas del día */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -583,7 +714,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleOpenSlot(st.id, "11:00")}
+                  onClick={() => handleOpenSlot(st.id, barber?.opening_time_morning || "10:00")}
                   className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg text-zinc-500 hover:text-indigo-600 transition"
                   title={`Añadir cita a ${st.name}`}
                 >
@@ -593,19 +724,24 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Rejilla horaria con slots */}
+          {/* Rejilla horaria con slots sincronizados */}
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
             {timelineHours.map((hourStr) => {
-              // Comprobar si esta hora cae en siesta (14:00 - 16:30)
+              const isSiesta = isSlotInSiesta(hourStr);
               const [h, m] = hourStr.split(":").map(Number);
-              const mins = h * 60 + m;
-              const isSiesta = mins >= 14 * 60 && mins < 16 * 60 + 30;
+              const slotStartMins = (h || 0) * 60 + (m || 0);
+              const interval = Math.max(10, Number(barber?.slot_interval) || 30);
+              const slotEndMins = slotStartMins + interval;
 
               return (
                 <div
                   key={hourStr}
                   className={`grid grid-cols-[70px_repeat(auto-fit,minmax(180px,1fr))] min-h-[56px] transition-colors ${
-                    isSiesta ? "bg-amber-50/20 dark:bg-amber-950/10" : "hover:bg-zinc-50/40"
+                    isSiesta
+                      ? "bg-amber-50/25 dark:bg-amber-950/20"
+                      : isCurrentDayClosed
+                      ? "bg-zinc-50/50 dark:bg-zinc-900/40"
+                      : "hover:bg-zinc-50/40"
                   }`}
                 >
                   {/* Etiqueta de la hora */}
@@ -615,14 +751,12 @@ export default function DashboardPage() {
 
                   {/* Columnas para cada barbero en esta hora */}
                   {staffList.map((st) => {
-                    // Buscar citas que empiezan en esta hora (o en el intervalo)
+                    // Buscar citas que caen en este intervalo horario
                     const slotAppts = appointments.filter((a) => {
                       if (a.staff_id !== st.id) return false;
                       const apptDate = new Date(a.starts_at);
-                      const apptHour = String(apptDate.getHours()).padStart(2, "0");
-                      const apptMin = String(apptDate.getMinutes()).padStart(2, "0");
-                      const apptTime = `${apptHour}:${apptMin}`;
-                      return apptTime === hourStr;
+                      const apptMins = apptDate.getHours() * 60 + apptDate.getMinutes();
+                      return apptMins >= slotStartMins && apptMins < slotEndMins;
                     });
 
                     return (
