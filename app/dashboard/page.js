@@ -74,7 +74,19 @@ export default function DashboardPage() {
       .select("*")
       .eq("id", user.id)
       .maybeSingle();
-    if (b) setBarber(b);
+
+    let barberData = b;
+    if (typeof window !== "undefined") {
+      try {
+        const localBackup = localStorage.getItem("barber_settings_backup");
+        if (localBackup) {
+          barberData = { ...(barberData || {}), ...JSON.parse(localBackup) };
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (barberData) setBarber(barberData);
 
     // Equipo de barberos
     const { data: stf } = await supabase
@@ -120,6 +132,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData();
+
+    function handleBarberUpdate() {
+      loadData();
+    }
+    window.addEventListener("barber_updated", handleBarberUpdate);
+    return () => window.removeEventListener("barber_updated", handleBarberUpdate);
   }, [loadData]);
 
   // Cambiar de día
@@ -311,15 +329,33 @@ export default function DashboardPage() {
       };
     }, [appointments]);
 
-  // Lista de horas para el Timeline (10:00 hasta 20:30)
+  // Lista de horas para el Timeline según horario configurado del barbero
   const timelineHours = useMemo(() => {
     const hours = [];
-    for (let h = 10; h <= 20; h++) {
+    let startH = 9;
+    let endH = 21;
+    if (barber?.opening_time_morning) {
+      const h = parseInt(barber.opening_time_morning.split(":")[0], 10);
+      if (!isNaN(h)) startH = Math.min(startH, h);
+    }
+    const closeTime = barber?.closing_time_afternoon || barber?.closing_time_morning;
+    if (closeTime) {
+      const h = parseInt(closeTime.split(":")[0], 10);
+      if (!isNaN(h)) endH = Math.max(endH, h);
+    }
+    for (let h = startH; h <= endH; h++) {
       hours.push(`${String(h).padStart(2, "0")}:00`);
       hours.push(`${String(h).padStart(2, "0")}:30`);
     }
     return hours;
-  }, []);
+  }, [barber?.opening_time_morning, barber?.closing_time_afternoon, barber?.closing_time_morning]);
+
+  const isCurrentDayClosed = useMemo(() => {
+    const activeWorkDays = barber?.work_days && Array.isArray(barber.work_days)
+      ? barber.work_days
+      : [1, 2, 3, 4, 5, 6];
+    return !activeWorkDays.includes(selectedDate.getDay());
+  }, [barber?.work_days, selectedDate]);
 
   return (
     <div className="space-y-6">
@@ -373,12 +409,19 @@ export default function DashboardPage() {
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-semibold px-3 text-zinc-900 dark:text-white capitalize min-w-[130px] text-center">
-              {selectedDate.toLocaleDateString("es-ES", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-              })}
+            <span className="text-xs font-semibold px-3 text-zinc-900 dark:text-white capitalize min-w-[130px] text-center flex flex-col items-center">
+              <span>
+                {selectedDate.toLocaleDateString("es-ES", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })}
+              </span>
+              {isCurrentDayClosed && (
+                <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded-md">
+                  Cerrado (descanso)
+                </span>
+              )}
             </span>
             <button
               onClick={handleNextDay}

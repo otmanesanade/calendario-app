@@ -132,15 +132,14 @@ export default function PublicBookingPage() {
           .eq("slug", slug)
           .maybeSingle();
 
-        if (b) {
-          setBarber(b);
-        } else if (typeof window !== "undefined") {
+        let activeBarber = b;
+        if (typeof window !== "undefined") {
           try {
             const localBackup = localStorage.getItem("barber_settings_backup");
             if (localBackup) {
               const parsed = JSON.parse(localBackup);
-              if (!slug || slug === parsed.slug || slug === "estudio-marco" || slug === "demo") {
-                setBarber((prev) => ({ ...(prev || DEFAULT_DEMO_BARBER), ...parsed }));
+              if (!slug || slug === parsed.slug || !activeBarber || activeBarber.id === parsed.id || slug === "estudio-marco" || slug === "demo") {
+                activeBarber = { ...(activeBarber || DEFAULT_DEMO_BARBER), ...parsed };
               }
             }
           } catch (e) {
@@ -148,8 +147,9 @@ export default function PublicBookingPage() {
           }
         }
 
-        if (b || (typeof window !== "undefined" && localStorage.getItem("barber_settings_backup"))) {
-          const barberId = b?.id || "demo-barber-id";
+        if (activeBarber) {
+          setBarber(activeBarber);
+          const barberId = activeBarber.id || "demo-barber-id";
 
           // Staff / Equipo de barberos
           const { data: stf } = await supabase
@@ -200,13 +200,16 @@ export default function PublicBookingPage() {
     load();
   }, [slug]);
 
-  // Set default selected date
+  // Set default selected date (respetando días laborables configurados)
   useEffect(() => {
     if (!selectedDate && upcomingDays.length > 0) {
-      const firstValid = upcomingDays.find((d) => !d.isSunday) || upcomingDays[0];
+      const activeWorkDays = barber?.work_days && Array.isArray(barber.work_days)
+        ? barber.work_days
+        : [1, 2, 3, 4, 5, 6];
+      const firstValid = upcomingDays.find((d) => activeWorkDays.includes(d.dayOfWeek)) || upcomingDays[0];
       setSelectedDate(firstValid);
     }
-  }, [upcomingDays, selectedDate]);
+  }, [upcomingDays, selectedDate, barber]);
 
   // Toggle servicio (Multi-Servicios)
   function toggleService(serviceId) {
@@ -289,7 +292,9 @@ export default function PublicBookingPage() {
       return list;
     }
 
-    const morningSlots = generateRange(parseTime(morningStart), parseTime(morningEnd));
+    const morningSlots = hasSiesta
+      ? generateRange(parseTime(morningStart), parseTime(morningEnd))
+      : generateRange(parseTime(morningStart), parseTime(afternoonEnd || morningEnd || "20:30"));
     const afternoonSlots = hasSiesta
       ? generateRange(parseTime(afternoonStart), parseTime(afternoonEnd))
       : [];
@@ -991,7 +996,10 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
               {upcomingDays.map((item) => {
                 const isSelected = selectedDate?.isoDate === item.isoDate;
-                const isClosed = item.isSunday;
+                const activeWorkDays = barber?.work_days && Array.isArray(barber.work_days)
+                  ? barber.work_days
+                  : [1, 2, 3, 4, 5, 6];
+                const isClosed = !activeWorkDays.includes(item.dayOfWeek);
 
                 return (
                   <button
@@ -1060,12 +1068,16 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
               </div>
             ) : (
               <div className="space-y-5">
-                {/* Turno Mañana */}
+                {/* Turno Mañana o Jornada Continua */}
                 {slotsGrouped.manana.length > 0 && (
                   <div>
                     <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      Turno de Mañana ({barber.opening_time_morning || "10:00"} - {barber.closing_time_morning || "14:00"})
+                      {barber.has_siesta === false ? (
+                        <>Horario Continuo ({barber.opening_time_morning || "10:00"} - {barber.closing_time_afternoon || barber.closing_time_morning || "20:30"})</>
+                      ) : (
+                        <>Turno de Mañana ({barber.opening_time_morning || "10:00"} - {barber.closing_time_morning || "14:00"})</>
+                      )}
                     </div>
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                       {slotsGrouped.manana.map(({ slot, available, reason }) => {
