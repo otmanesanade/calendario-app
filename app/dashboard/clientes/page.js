@@ -15,7 +15,6 @@ import {
   Award,
   Gift,
   Clock,
-  CalendarAlert,
   History,
 } from "lucide-react";
 

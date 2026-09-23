@@ -44,9 +44,8 @@ export default function DashboardLayout({ children }) {
   useEffect(() => {
     async function loadBarber() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const authRes = await supabase.auth.getUser();
+        const user = authRes?.data?.user;
         if (!user) {
           router.push("/login");
           return;

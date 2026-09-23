@@ -7,7 +7,7 @@ import {
   Clock,
   MapPin,
   Phone,
-  Instagram,
+  AtSign,
   Check,
   Save,
   AlertCircle,
@@ -75,9 +75,8 @@ export default function AjustesPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const authRes = await supabase.auth.getUser();
+      const user = authRes?.data?.user;
 
       const targetUserId = user?.id || "barber-demo-1";
 
@@ -153,9 +152,8 @@ export default function AjustesPage() {
     setScheduleSavedSuccess(false);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const authRes = await supabase.auth.getUser();
+      const user = authRes?.data?.user;
       const targetId = barber?.id || user?.id || "barber-demo-1";
 
       const nextWorkDays = overrides.work_days ?? workDays;
@@ -232,9 +230,8 @@ export default function AjustesPage() {
     setSavedSuccess(false);
     setSaveError("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const authRes = await supabase.auth.getUser();
+    const user = authRes?.data?.user;
     const targetId = barber?.id || user?.id || "barber-demo-1";
 
     setSaving(true);
@@ -307,6 +304,8 @@ export default function AjustesPage() {
     );
   }
 
+  const safeWorkDays = Array.isArray(workDays) ? workDays : [1, 2, 3, 4, 5, 6];
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Cabecera */}
@@ -378,13 +377,13 @@ export default function AjustesPage() {
                 Días de apertura (Toca un día para abrirlo o cerrarlo)
               </label>
               <span className="text-xs text-zinc-500">
-                {workDays.length} días abiertos por semana
+                {safeWorkDays.length} días abiertos por semana
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
               {DIAS_LABORABLES.map((d) => {
-                const active = workDays.includes(d.id);
+                const active = safeWorkDays.includes(d.id);
                 return (
                   <button
                     key={d.id}
@@ -794,7 +793,7 @@ export default function AjustesPage() {
                 Instagram
               </label>
               <div className="relative">
-                <Instagram className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
+                <AtSign className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   value={instagram}
