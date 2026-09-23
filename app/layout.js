@@ -7,8 +7,17 @@ export const metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Glowfy",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
 };
 
@@ -22,6 +31,13 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
+      <head>
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Glowfy" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      </head>
       <body className="antialiased font-sans">{children}</body>
     </html>
   );

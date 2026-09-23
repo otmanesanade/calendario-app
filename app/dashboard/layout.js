@@ -19,8 +19,11 @@ import {
   Smartphone,
   Sparkles,
   QrCode,
+  Tablet,
+  Download,
 } from "lucide-react";
 import QrCodeModal from "../../components/QrCodeModal";
+import PwaInstallModal from "../../components/PwaInstallModal";
 
 const NAV = [
   { href: "/dashboard", label: "Agenda diaria", icon: CalendarDays },
@@ -38,10 +41,25 @@ export default function DashboardLayout({ children }) {
   const [barber, setBarber] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showPwaModal, setShowPwaModal] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [pwaInstalled, setPwaInstalled] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const standalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+      setIsStandalone(standalone);
+
+      const ua = window.navigator.userAgent.toLowerCase();
+      const isIOS =
+        /iphone|ipad|ipod/.test(ua) ||
+        (window.navigator.maxTouchPoints > 1 && /macintosh/.test(ua));
+      setIsIOSDevice(isIOS);
+    }
+
     async function loadBarber() {
       try {
         const authRes = await supabase.auth.getUser();
@@ -94,17 +112,26 @@ export default function DashboardLayout({ children }) {
     setTimeout(() => setCopied(false), 2500);
   }
 
-  async function handleInstallPwa() {
-    if (deferredPrompt) {
+  async function handleInstallDeferred() {
+    if (!deferredPrompt) {
+      setShowPwaModal(true);
+      return;
+    }
+    try {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === "accepted") {
-        setPwaInstalled(true);
+        setIsStandalone(true);
       }
       setDeferredPrompt(null);
-    } else {
-      alert("Para instalar la app en tu móvil: pulsa en Compartir / Menú de tu navegador y elige 'Añadir a la pantalla de inicio'.");
+      setShowPwaModal(false);
+    } catch (err) {
+      console.warn("PWA install error:", err);
     }
+  }
+
+  function handleOpenInstallModal() {
+    setShowPwaModal(true);
   }
 
   async function handleLogout() {
@@ -139,6 +166,18 @@ export default function DashboardLayout({ children }) {
           <div className="flex items-center gap-2">
             {barber && (
               <>
+                {!isStandalone && (
+                  <button
+                    onClick={handleOpenInstallModal}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shadow-xs"
+                    title="Instalar Glowfy en tu iPhone, iPad, Tablet o Android"
+                  >
+                    <Tablet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span className="hidden md:inline">Instalar en iPad/iPhone</span>
+                    <span className="md:hidden">Instalar</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setShowQrModal(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 transition shadow-xs"
@@ -226,25 +265,38 @@ export default function DashboardLayout({ children }) {
             </button>
 
             {/* PWA / App Móvil Card */}
-            <div className="mt-6 p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/40 text-left">
-              <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs mb-1">
-                <Smartphone className="w-4 h-4" />
-                <span>App Móvil PWA</span>
+            {!isStandalone && (
+              <div className="mt-6 p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/40 text-left">
+                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs mb-1">
+                  <Tablet className="w-4 h-4" />
+                  <span>Instalar en iPhone / iPad</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug mb-2.5">
+                  Añade la app a tu pantalla de inicio en iPhone, iPad, Tablet o Android para usar en el local.
+                </p>
+                <button
+                  onClick={handleOpenInstallModal}
+                  className="w-full py-1.5 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-semibold transition text-center flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Instalar en tu pantalla</span>
+                </button>
               </div>
-              <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug mb-2.5">
-                Instala la agenda en la pantalla de inicio de tu móvil como una app nativa.
-              </p>
-              <button
-                onClick={handleInstallPwa}
-                className="w-full py-1.5 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-semibold transition text-center"
-              >
-                Instalar App
-              </button>
-            </div>
+            )}
           </nav>
 
           {/* Navegación horizontal scrollable en móvil bajo la cabecera */}
           <div className="md:hidden flex gap-1.5 overflow-x-auto pb-3 mb-4 scrollbar-none">
+            {!isStandalone && (
+              <button
+                type="button"
+                onClick={handleOpenInstallModal}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 whitespace-nowrap flex-shrink-0 shadow-xs"
+              >
+                <Tablet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>📲 Instalar App (iOS/Tablet)</span>
+              </button>
+            )}
             {NAV.map((item) => {
               const active = pathname === item.href;
               const Icon = item.icon;
@@ -310,6 +362,14 @@ export default function DashboardLayout({ children }) {
         businessName={barber?.business_name || "Mi Centro"}
         slug={barber?.slug || "demo"}
         city={barber?.city || "España"}
+      />
+
+      {/* Modal Instalación PWA para iOS (iPhone / iPad), Tablet y Android */}
+      <PwaInstallModal
+        isOpen={showPwaModal}
+        onClose={() => setShowPwaModal(false)}
+        deferredPrompt={deferredPrompt}
+        onInstallDeferred={handleInstallDeferred}
       />
     </div>
   );
