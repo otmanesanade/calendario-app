@@ -1192,7 +1192,7 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer className="py-12 px-4 sm:px-8 border-t border-slate-200 text-xs text-slate-500 bg-white">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <GlowfyLogo size={28} />
             <div>
@@ -1201,13 +1201,16 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 font-semibold text-slate-600">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-semibold text-slate-600">
             <Link href="/login" className="hover:text-emerald-600 transition">Panel de gestión</Link>
             <Link href="/register" className="hover:text-emerald-600 transition">Registro de centros</Link>
             <Link href="/estudio-marco" className="hover:text-emerald-600 transition">Demo online</Link>
+            <span className="hidden sm:inline text-slate-300">|</span>
+            <Link href="/politica-de-privacidad" className="hover:text-emerald-600 transition">Política de Privacidad</Link>
+            <Link href="/terminos-de-servicio" className="hover:text-emerald-600 transition">Términos de Servicio</Link>
           </div>
 
-          <p className="text-slate-400 text-[11px]">
+          <p className="text-slate-400 text-[11px] text-center md:text-right">
             &copy; {new Date().getFullYear()} Glowfy España. Todos los derechos reservados.
           </p>
         </div>

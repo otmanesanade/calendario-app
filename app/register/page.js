@@ -526,6 +526,17 @@ export default function RegisterPage() {
                 </>
               )}
             </button>
+
+            <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500 leading-tight">
+              Al hacer clic en &quot;Crear Centro&quot;, confirmas que aceptas nuestros{" "}
+              <Link href="/terminos-de-servicio" target="_blank" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                Términos de Servicio
+              </Link>{" "}
+              y la{" "}
+              <Link href="/politica-de-privacidad" target="_blank" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                Política de Privacidad
+              </Link>.
+            </p>
           </form>
         </div>
 
