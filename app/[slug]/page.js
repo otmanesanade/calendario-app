@@ -423,21 +423,35 @@ export default function PublicBookingPage() {
           }
         } else {
           // Registrar nuevo cliente en el CRM del barbero
+          const generatedClientId =
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : undefined;
+
+          const clientPayload = {
+            ...(generatedClientId ? { id: generatedClientId } : {}),
+            barber_id: barber.id,
+            full_name: name.trim(),
+            phone: cleanPhone,
+            notes: notes.trim() ? `Nota cliente: ${notes.trim()}` : null,
+          };
+
           const { data: newClient, error: clientErr } = await supabase
             .from("clients")
-            .insert({
-              barber_id: barber.id,
-              full_name: name.trim(),
-              phone: cleanPhone,
-              notes: notes.trim() ? `Nota cliente: ${notes.trim()}` : null,
-            })
+            .insert(clientPayload)
             .select()
             .maybeSingle();
 
           if (clientErr) {
-            console.warn("Aviso al crear cliente:", clientErr);
+            console.warn("Aviso al crear cliente en CRM:", clientErr);
+            // Si falló por RLS select o similar, intentamos insert simple sin .select()
+            try {
+              await supabase.from("clients").insert(clientPayload);
+            } catch (fallbackInsertErr) {
+              console.warn("Fallo insert directo cliente:", fallbackInsertErr);
+            }
           }
-          clientId = newClient?.id || null;
+          clientId = newClient?.id || generatedClientId || null;
         }
       } catch (clientLookupErr) {
         console.warn("Fallo secundario cliente CRM:", clientLookupErr);
@@ -468,15 +482,12 @@ export default function PublicBookingPage() {
       // Nombres de los servicios concatenados (Multi-Servicios)
       const serviceNames = selectedServices.map((s) => s.name).join(" + ");
 
-      // 3. Crear cita vinculada al barbero y al cliente (con nombre y teléfono guardados directamente para máxima fiabilidad)
-      const { error: apptError } = await supabase.from("appointments").insert({
+      // 3. Crear cita vinculada al barbero y al cliente
+      // Payload base compatible con el esquema original de Supabase
+      const baseApptPayload = {
         barber_id: barber.id,
         client_id: clientId,
-        client_name: name.trim(),
-        client_phone: cleanPhone,
-        service_name: serviceNames,
-        notes: notes.trim() || null,
-        service_id: selectedServices[0]?.id,
+        service_id: selectedServices[0]?.id || null,
         staff_id: finalStaffId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
@@ -484,7 +495,32 @@ export default function PublicBookingPage() {
         total_price: totalPrice,
         total_duration: totalDuration,
         payment_status: "pendiente",
+      };
+
+      // Intentamos primero con las columnas extendidas si existen en la BD del usuario
+      let { error: apptError } = await supabase.from("appointments").insert({
+        ...baseApptPayload,
+        client_name: name.trim(),
+        client_phone: cleanPhone,
+        service_name: serviceNames,
+        notes: notes.trim() || null,
       });
+
+      // Si la BD de Supabase no tiene client_name/service_name/notes en appointments (error PGRST204 / schema cache)
+      if (
+        apptError &&
+        (apptError.code === "PGRST204" ||
+          apptError.message?.toLowerCase().includes("client_name") ||
+          apptError.message?.toLowerCase().includes("schema cache") ||
+          apptError.message?.toLowerCase().includes("column"))
+      ) {
+        console.warn(
+          "Columnas extendidas no presentes en la tabla appointments. Reintentando con esquema base:",
+          apptError.message
+        );
+        const retryResult = await supabase.from("appointments").insert(baseApptPayload);
+        apptError = retryResult.error;
+      }
 
       if (apptError) {
         console.error("Error insertando cita:", apptError);

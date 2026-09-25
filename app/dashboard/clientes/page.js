@@ -54,11 +54,26 @@ export default function ClientesPage() {
       let clientList = [...(cData || [])];
 
       // Contar visitas por cliente y fecha de última cita para detectar inactivos
-      const { data: appts } = await supabase
+      let { data: appts, error: apptsErr } = await supabase
         .from("appointments")
         .select("client_id, client_name, client_phone, notes, status, starts_at")
         .eq("barber_id", user.id)
         .order("starts_at", { ascending: false });
+
+      if (
+        apptsErr &&
+        (apptsErr.code === "PGRST204" ||
+          apptsErr.message?.toLowerCase().includes("client_name") ||
+          apptsErr.message?.toLowerCase().includes("schema cache") ||
+          apptsErr.message?.toLowerCase().includes("column"))
+      ) {
+        const fallback = await supabase
+          .from("appointments")
+          .select("client_id, status, starts_at")
+          .eq("barber_id", user.id)
+          .order("starts_at", { ascending: false });
+        appts = fallback.data;
+      }
 
       // Asegurar que cualquier cliente que haya reservado cita online aparezca también en el CRM
       const existingPhoneSet = new Set(clientList.map((c) => (c.phone || "").replace(/\s+/g, "")));

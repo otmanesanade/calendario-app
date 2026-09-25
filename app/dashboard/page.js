@@ -127,7 +127,7 @@ export default function DashboardPage() {
     const endOfDay = new Date(selectedDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const { data: appts } = await supabase
+    let { data: appts, error: apptsErr } = await supabase
       .from("appointments")
       .select(
         "id, client_id, client_name, client_phone, notes, service_name, service_id, staff_id, starts_at, ends_at, status, total_price, payment_method, payment_status, tip_amount, clients(full_name, phone, notes), services(name, price, duration_minutes), barber_staff(name, avatar_color)"
@@ -136,6 +136,27 @@ export default function DashboardPage() {
       .gte("starts_at", startOfDay.toISOString())
       .lte("starts_at", endOfDay.toISOString())
       .order("starts_at", { ascending: true });
+
+    // Si la tabla appointments no tiene las columnas client_name/service_name/notes en Supabase
+    if (
+      apptsErr &&
+      (apptsErr.code === "PGRST204" ||
+        apptsErr.message?.toLowerCase().includes("client_name") ||
+        apptsErr.message?.toLowerCase().includes("schema cache") ||
+        apptsErr.message?.toLowerCase().includes("column"))
+    ) {
+      console.warn("Cargando citas con esquema estándar de Supabase (sin columnas directas):", apptsErr.message);
+      const fallbackResult = await supabase
+        .from("appointments")
+        .select(
+          "id, client_id, service_id, staff_id, starts_at, ends_at, status, total_price, payment_method, payment_status, tip_amount, clients(full_name, phone, notes), services(name, price, duration_minutes), barber_staff(name, avatar_color)"
+        )
+        .eq("barber_id", user.id)
+        .gte("starts_at", startOfDay.toISOString())
+        .lte("starts_at", endOfDay.toISOString())
+        .order("starts_at", { ascending: true });
+      appts = fallbackResult.data;
+    }
 
     setAppointments(appts || []);
     setLoading(false);
@@ -295,23 +316,37 @@ export default function DashboardPage() {
 
     const endsAt = new Date(startsAt.getTime() + combinedDuration * 60000);
 
-    // 3. Crear cita con nombre y teléfono guardados directamente
-    await supabase.from("appointments").insert({
+    // 3. Crear cita vinculada
+    const baseManualAppt = {
       barber_id: user.id,
       client_id: clientId,
-      client_name: newClientName.trim(),
-      client_phone: phoneClean || "Sin teléfono",
-      service_name: chosenNames,
-      notes: "Cita manual en el salón",
-      service_id: chosenServices[0]?.id,
-      staff_id: newStaffId || (staffList[0] && staffList[0].id),
+      service_id: chosenServices[0]?.id || null,
+      staff_id: newStaffId || (staffList[0] && staffList[0].id) || null,
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
       status: "confirmada",
       total_price: combinedPrice,
       total_duration: combinedDuration,
       payment_status: "pendiente",
+    };
+
+    let { error: manualErr } = await supabase.from("appointments").insert({
+      ...baseManualAppt,
+      client_name: newClientName.trim(),
+      client_phone: phoneClean || "Sin teléfono",
+      service_name: chosenNames,
+      notes: "Cita manual en el salón",
     });
+
+    if (
+      manualErr &&
+      (manualErr.code === "PGRST204" ||
+        manualErr.message?.toLowerCase().includes("client_name") ||
+        manualErr.message?.toLowerCase().includes("schema cache") ||
+        manualErr.message?.toLowerCase().includes("column"))
+    ) {
+      await supabase.from("appointments").insert(baseManualAppt);
+    }
 
     dispatchNewAppointment({
       clientName: newClientName.trim(),
