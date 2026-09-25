@@ -51,22 +51,45 @@ export default function ClientesPage() {
         .select("*")
         .eq("barber_id", user.id)
         .order("full_name", { ascending: true });
-      setClients(cData || []);
+      let clientList = [...(cData || [])];
 
       // Contar visitas por cliente y fecha de última cita para detectar inactivos
       const { data: appts } = await supabase
         .from("appointments")
-        .select("client_id, status, starts_at")
+        .select("client_id, client_name, client_phone, notes, status, starts_at")
         .eq("barber_id", user.id)
         .order("starts_at", { ascending: false });
+
+      // Asegurar que cualquier cliente que haya reservado cita online aparezca también en el CRM
+      const existingPhoneSet = new Set(clientList.map((c) => (c.phone || "").replace(/\s+/g, "")));
+      (appts || []).forEach((a) => {
+        const cleanAptPhone = (a.client_phone || "").replace(/\s+/g, "");
+        if (cleanAptPhone && cleanAptPhone !== "Sinteléfono" && !existingPhoneSet.has(cleanAptPhone)) {
+          existingPhoneSet.add(cleanAptPhone);
+          clientList.push({
+            id: a.client_id || `cli-sync-${Math.random().toString(36).slice(2, 7)}`,
+            barber_id: user.id,
+            full_name: a.client_name || "Cliente Online",
+            phone: a.client_phone,
+            notes: a.notes || "Cliente de reserva online",
+            created_at: a.starts_at || new Date().toISOString(),
+          });
+        }
+      });
+      setClients(clientList);
 
       const visitsMap = {};
       const lastVisitMap = {};
 
       (appts || []).forEach((a) => {
-        if (a.client_id && a.status !== "cancelada" && a.status !== "no_vino") {
-          visitsMap[a.client_id] = (visitsMap[a.client_id] || 0) + 1;
-          if (!lastVisitMap[a.client_id] && a.starts_at) {
+        const cKey = a.client_id || a.client_phone;
+        if (cKey && a.status !== "cancelada" && a.status !== "no_vino") {
+          visitsMap[cKey] = (visitsMap[cKey] || 0) + 1;
+          if (a.client_id) visitsMap[a.client_id] = (visitsMap[a.client_id] || 0) + 1;
+          if (!lastVisitMap[cKey] && a.starts_at) {
+            lastVisitMap[cKey] = a.starts_at;
+          }
+          if (a.client_id && !lastVisitMap[a.client_id] && a.starts_at) {
             lastVisitMap[a.client_id] = a.starts_at;
           }
         }

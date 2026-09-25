@@ -26,6 +26,7 @@ import {
   Gift,
 } from "lucide-react";
 import QrCodeModal from "../../components/QrCodeModal";
+import { dispatchNewAppointment } from "../../lib/notifications";
 
 // Días de la semana en español
 const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -467,10 +468,14 @@ export default function PublicBookingPage() {
       // Nombres de los servicios concatenados (Multi-Servicios)
       const serviceNames = selectedServices.map((s) => s.name).join(" + ");
 
-      // 3. Crear cita vinculada al barbero y al cliente
+      // 3. Crear cita vinculada al barbero y al cliente (con nombre y teléfono guardados directamente para máxima fiabilidad)
       const { error: apptError } = await supabase.from("appointments").insert({
         barber_id: barber.id,
         client_id: clientId,
+        client_name: name.trim(),
+        client_phone: cleanPhone,
+        service_name: serviceNames,
+        notes: notes.trim() || null,
         service_id: selectedServices[0]?.id,
         staff_id: finalStaffId,
         starts_at: startsAt.toISOString(),
@@ -485,6 +490,20 @@ export default function PublicBookingPage() {
         console.error("Error insertando cita:", apptError);
         throw new Error(apptError.message || "No se pudo registrar la reserva en la base de datos.");
       }
+
+      // 4. Disparar notificación en directo en la app (sonido, popup toast, badge en campana y notificación push)
+      dispatchNewAppointment({
+        clientName: name.trim(),
+        clientPhone: cleanPhone,
+        serviceName: serviceNames,
+        startsAt: startsAt.toISOString(),
+        slot: selectedSlot,
+        totalPrice,
+        barberId: barber.id,
+        barberName: barber.business_name,
+        staffName: assignedStaff ? assignedStaff.name : "Equipo",
+        notes: notes.trim(),
+      });
 
       setConfirmedData({
         clientName: name,

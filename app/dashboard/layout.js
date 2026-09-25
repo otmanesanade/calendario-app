@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import QrCodeModal from "../../components/QrCodeModal";
 import PwaInstallModal from "../../components/PwaInstallModal";
+import NotificationCenter from "../../components/NotificationCenter";
 
 const NAV = [
   { href: "/dashboard", label: "Agenda diaria", icon: CalendarDays },
@@ -219,6 +220,8 @@ export default function DashboardLayout({ children }) {
                 </div>
               </>
             )}
+
+            <NotificationCenter />
 
             <button
               onClick={handleLogout}

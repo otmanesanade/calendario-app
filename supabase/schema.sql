@@ -90,6 +90,10 @@ create table if not exists appointments (
   payment_method text default 'efectivo',
   payment_status text default 'pendiente',
   tip_amount numeric(10,2) default 0,
+  client_name text,
+  client_phone text,
+  service_name text,
+  notes text,
   created_at timestamptz default now()
 );
 
@@ -100,6 +104,10 @@ alter table appointments add column if not exists total_duration int default 30;
 alter table appointments add column if not exists payment_method text default 'efectivo';
 alter table appointments add column if not exists payment_status text default 'pendiente';
 alter table appointments add column if not exists tip_amount numeric(10,2) default 0;
+alter table appointments add column if not exists client_name text;
+alter table appointments add column if not exists client_phone text;
+alter table appointments add column if not exists service_name text;
+alter table appointments add column if not exists notes text;
 
 -- ============================================================
 -- Row Level Security (RLS)

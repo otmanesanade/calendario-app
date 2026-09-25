@@ -29,7 +29,9 @@ import {
   Award,
   Gift,
   Star,
+  FileText,
 } from "lucide-react";
+import { dispatchNewAppointment } from "../../lib/notifications";
 
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -44,6 +46,9 @@ export default function DashboardPage() {
   const [staffList, setStaffList] = useState([]);
   const [barber, setBarber] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Modal para ver y gestionar la ficha de la cita (nombre, teléfono, notas, etc.)
+  const [detailAppt, setDetailAppt] = useState(null);
 
   // Modal para añadir cita manual
   const [showAddModal, setShowAddModal] = useState(false);
@@ -125,7 +130,7 @@ export default function DashboardPage() {
     const { data: appts } = await supabase
       .from("appointments")
       .select(
-        "id, client_id, service_id, staff_id, starts_at, ends_at, status, total_price, payment_method, payment_status, tip_amount, clients(full_name, phone), services(name, price, duration_minutes), barber_staff(name, avatar_color)"
+        "id, client_id, client_name, client_phone, notes, service_name, service_id, staff_id, starts_at, ends_at, status, total_price, payment_method, payment_status, tip_amount, clients(full_name, phone, notes), services(name, price, duration_minutes), barber_staff(name, avatar_color)"
       )
       .eq("barber_id", user.id)
       .gte("starts_at", startOfDay.toISOString())
@@ -145,8 +150,26 @@ export default function DashboardPage() {
       }
       loadData();
     }
+
+    function handleLiveAppointment() {
+      loadData();
+    }
+
+    function handleStorageEvent(e) {
+      if (e.key === "glowfy_new_booking_ping") {
+        loadData();
+      }
+    }
+
     window.addEventListener("barber_updated", handleBarberUpdate);
-    return () => window.removeEventListener("barber_updated", handleBarberUpdate);
+    window.addEventListener("glowfy_new_appointment", handleLiveAppointment);
+    window.addEventListener("storage", handleStorageEvent);
+
+    return () => {
+      window.removeEventListener("barber_updated", handleBarberUpdate);
+      window.removeEventListener("glowfy_new_appointment", handleLiveAppointment);
+      window.removeEventListener("storage", handleStorageEvent);
+    };
   }, [loadData]);
 
   // Cambiar de día
@@ -267,13 +290,19 @@ export default function DashboardPage() {
     const chosenServices = services.filter((s) => newServiceIds.includes(s.id));
     const combinedDuration = chosenServices.reduce((sum, s) => sum + (s.duration_minutes || 30), 0);
     const combinedPrice = chosenServices.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+    const chosenNames = chosenServices.map((s) => s.name).join(" + ");
+    const staffMember = staffList.find((s) => s.id === (newStaffId || (staffList[0] && staffList[0].id)));
 
     const endsAt = new Date(startsAt.getTime() + combinedDuration * 60000);
 
-    // 3. Crear cita
+    // 3. Crear cita con nombre y teléfono guardados directamente
     await supabase.from("appointments").insert({
       barber_id: user.id,
       client_id: clientId,
+      client_name: newClientName.trim(),
+      client_phone: phoneClean || "Sin teléfono",
+      service_name: chosenNames,
+      notes: "Cita manual en el salón",
       service_id: chosenServices[0]?.id,
       staff_id: newStaffId || (staffList[0] && staffList[0].id),
       starts_at: startsAt.toISOString(),
@@ -282,6 +311,19 @@ export default function DashboardPage() {
       total_price: combinedPrice,
       total_duration: combinedDuration,
       payment_status: "pendiente",
+    });
+
+    dispatchNewAppointment({
+      clientName: newClientName.trim(),
+      clientPhone: phoneClean || "Sin teléfono",
+      serviceName: chosenNames,
+      startsAt: startsAt.toISOString(),
+      slot: newSlotTime,
+      totalPrice: combinedPrice,
+      barberId: user.id,
+      barberName: barber?.business_name,
+      staffName: staffMember ? staffMember.name : "Equipo",
+      notes: "Cita manual en el salón",
     });
 
     setNewClientName("");
@@ -293,7 +335,7 @@ export default function DashboardPage() {
 
   // Generar enlace WhatsApp de recordatorio para España
   function getWhatsAppReminderUrl(appt) {
-    const rawPhone = (appt.clients?.phone || "").replace(/[^0-9]/g, "");
+    const rawPhone = (appt.client_phone || appt.clients?.phone || "").replace(/[^0-9]/g, "");
     if (!rawPhone) return "#";
 
     const dateObj = new Date(appt.starts_at);
@@ -308,9 +350,10 @@ export default function DashboardPage() {
     });
 
     const staffName = appt.barber_staff?.name || "tu barbero";
-    const serviceName = appt.services?.name || "tu cita";
+    const serviceName = appt.service_name || appt.services?.name || "tu cita";
+    const clientName = appt.client_name || appt.clients?.full_name || "estimado cliente";
 
-    const text = `Hola ${appt.clients?.full_name || ""} 👋 Te recordamos tu cita de ${serviceName} con ${staffName} para ${dia} a las ${hora} en ${
+    const text = `Hola ${clientName} 👋 Te recordamos tu cita de ${serviceName} con ${staffName} para ${dia} a las ${hora} en ${
       barber?.business_name || "la barbería"
     }. Si necesitas cambiarla o no puedes venir, avísanos con antelación. ¡Nos vemos pronto! 💈`;
 
@@ -320,7 +363,7 @@ export default function DashboardPage() {
   // Generar texto para pedir reseña de Google
   function getReviewMessageText(appt) {
     if (!appt) return "";
-    const clientName = appt.clients?.full_name || appt.client_name || "amigo";
+    const clientName = appt.client_name || appt.clients?.full_name || "amigo";
     const salonName = barber?.business_name || "nuestro salón";
     const reviewLink = barber?.google_review_url || "https://g.page/r/ejemplo/review";
 
@@ -780,15 +823,17 @@ export default function DashboardPage() {
                             const isPaid = appt.status === "completada";
                             const isNoShow = appt.status === "no_vino";
                             const isCancelled = appt.status === "cancelada";
+                            const clientName = appt.client_name || appt.clients?.full_name || "Cliente";
+                            const clientPhone = appt.client_phone || appt.clients?.phone || "";
 
                             return (
                               <div
                                 key={appt.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setPaymentModalAppt(appt);
+                                  setDetailAppt(appt);
                                 }}
-                                className={`p-2 rounded-xl text-left shadow-xs border transition-all ${
+                                className={`p-2.5 rounded-xl text-left shadow-xs border transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] ${
                                   isPaid
                                     ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-100"
                                     : isNoShow
@@ -800,14 +845,23 @@ export default function DashboardPage() {
                               >
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="font-bold text-xs truncate">
-                                    {appt.clients?.full_name || "Cliente"}
+                                    {clientName}
                                   </span>
                                   <span className="font-semibold text-xs text-emerald-600 dark:text-emerald-400">
                                     {appt.total_price || (appt.services && appt.services.price)} €
                                   </span>
                                 </div>
+
+                                {/* Teléfono del cliente directamente visible en la tarjeta */}
+                                {clientPhone ? (
+                                  <div className="text-[10px] text-zinc-600 dark:text-zinc-300 font-mono font-medium flex items-center gap-1 mt-0.5 truncate">
+                                    <Phone className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <span>{clientPhone}</span>
+                                  </div>
+                                ) : null}
+
                                 <div className="text-[11px] text-zinc-600 dark:text-zinc-300 truncate mt-0.5">
-                                  {appt.services?.name || "Servicio"}
+                                  {appt.service_name || appt.services?.name || "Servicio"}
                                 </div>
                                 <div className="flex items-center justify-between mt-1 text-[10px]">
                                   <span className="capitalize font-semibold">
@@ -817,7 +871,7 @@ export default function DashboardPage() {
                                     {appt.payment_method ? `(${appt.payment_method})` : "Pendiente"}
                                   </span>
                                 </div>
-                                {appt.status === "completada" && (appt.clients?.phone || appt.client_phone) && (
+                                {appt.status === "completada" && (appt.client_phone || appt.clients?.phone) && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -866,55 +920,93 @@ export default function DashboardPage() {
                 minute: "2-digit",
               });
               const isPaid = appt.status === "completada";
+              const clientName = appt.client_name || appt.clients?.full_name || "Cliente";
+              const clientPhone = appt.client_phone || appt.clients?.phone || "";
+              const clientNotes = appt.notes || appt.clients?.notes || "";
 
               return (
                 <div
                   key={appt.id}
                   className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition"
                 >
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 text-center">
+                  <div
+                    className="flex items-center gap-3.5 cursor-pointer flex-1"
+                    onClick={() => setDetailAppt(appt)}
+                    title="Hacer clic para ver detalles y gestionar cliente"
+                  >
+                    <div className="w-12 text-center shrink-0">
                       <span className="text-sm font-bold text-zinc-900 dark:text-white block">
                         {hora}
                       </span>
                       <span className="text-[10px] text-zinc-400 block">
-                        {appt.services?.duration_minutes || 30} min
+                        {appt.total_duration || appt.services?.duration_minutes || 30} min
                       </span>
                     </div>
 
-                    <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-800" />
+                    <div className="w-px h-10 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
 
-                    <div>
+                    <div className="min-w-0">
                       <div className="font-semibold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
-                        <span>{appt.clients?.full_name || "Cliente"}</span>
+                        <span>{clientName}</span>
                         {appt.barber_staff && (
                           <span
-                            className="text-[10px] px-2 py-0.5 rounded-full text-white font-semibold"
+                            className="text-[10px] px-2 py-0.5 rounded-full text-white font-semibold shrink-0"
                             style={{ backgroundColor: appt.barber_staff.avatar_color || "#4f46e5" }}
                           >
                             {appt.barber_staff.name}
                           </span>
                         )}
                       </div>
+
+                      {/* TELÉFONO DEL CLIENTE - CLICABLE PARA LLAMAR */}
+                      {clientPhone ? (
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <a
+                            href={`tel:${clientPhone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-mono font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                            title="Llamar al cliente"
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>{clientPhone}</span>
+                          </a>
+                          {clientNotes && (
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 italic truncate max-w-[200px]" title={clientNotes}>
+                              📝 {clientNotes}
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+
                       <div className="text-xs text-zinc-500 flex items-center gap-2 mt-0.5">
-                        <span>{appt.services?.name || "Corte"}</span>
+                        <span className="truncate">{appt.service_name || appt.services?.name || "Corte"}</span>
                         <span>·</span>
-                        <span className="font-bold text-zinc-900 dark:text-white">
+                        <span className="font-bold text-zinc-900 dark:text-white shrink-0">
                           {appt.total_price || (appt.services && appt.services.price)} €
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    {/* Botón WhatsApp Recordatorio */}
-                    {appt.clients?.phone && (
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    {/* Botón Ver Ficha */}
+                    <button
+                      type="button"
+                      onClick={() => setDetailAppt(appt)}
+                      className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl text-xs font-medium transition"
+                      title="Ver información y ficha completa de la cita"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
+
+                    {/* Botón WhatsApp */}
+                    {clientPhone && (
                       <a
                         href={getWhatsAppReminderUrl(appt)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 rounded-xl transition"
-                        title="Enviar recordatorio por WhatsApp"
+                        className="p-2 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-xl transition"
+                        title="Enviar mensaje / recordatorio por WhatsApp"
                       >
                         <MessageCircle className="w-4 h-4 fill-current" />
                       </a>
@@ -951,7 +1043,7 @@ export default function DashboardPage() {
                     <button
                       onClick={() => handleUpdateStatus(appt.id, "no_vino")}
                       className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg text-xs"
-                      title="Marcar como No-Show"
+                      title="Marcar como No-Show (No vino)"
                     >
                       <XCircle className="w-4 h-4" />
                     </button>
@@ -960,6 +1052,219 @@ export default function DashboardPage() {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* MODAL DETALLES Y GESTIÓN DE CITA (Nombre, Teléfono, WhatsApp, Llamada, Servicios) */}
+      {detailAppt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl max-w-md w-full p-6 border border-zinc-200 dark:border-zinc-800 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+            {/* Cabecera */}
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                  <User className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="font-bold text-base text-zinc-900 dark:text-white">
+                    Ficha de la Cita
+                  </h2>
+                  <p className="text-xs text-zinc-500">
+                    {new Date(detailAppt.starts_at).toLocaleDateString("es-ES", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}{" "}
+                    a las{" "}
+                    {new Date(detailAppt.starts_at).toLocaleTimeString("es-ES", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailAppt(null)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tarjeta del Cliente: Nombre & Teléfono & Acciones Rápidas */}
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/70 dark:border-zinc-700/60">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Cliente
+                  </span>
+                  <div className="text-base font-extrabold text-zinc-900 dark:text-white mt-0.5">
+                    {detailAppt.client_name || detailAppt.clients?.full_name || "Cliente"}
+                  </div>
+                  <div className="text-xs font-mono font-semibold text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>{detailAppt.client_phone || detailAppt.clients?.phone || "Sin teléfono registrado"}</span>
+                  </div>
+                </div>
+
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                  detailAppt.status === "completada"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300"
+                    : detailAppt.status === "cancelada" || detailAppt.status === "no_vino"
+                    ? "bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300"
+                    : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300"
+                }`}>
+                  {detailAppt.status}
+                </span>
+              </div>
+
+              {/* Botones de Contacto Directo */}
+              {(detailAppt.client_phone || detailAppt.clients?.phone) && (
+                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-zinc-200/60 dark:border-zinc-700/60">
+                  <a
+                    href={`tel:${detailAppt.client_phone || detailAppt.clients?.phone}`}
+                    className="py-2 px-3 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-750 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 border border-zinc-200 dark:border-zinc-700 shadow-xs transition"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Llamar ahora</span>
+                  </a>
+                  <a
+                    href={getWhatsAppReminderUrl(detailAppt)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 shadow-xs transition"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                    <span>WhatsApp</span>
+                  </a>
+                </div>
+              )}
+
+              {/* Notas del cliente */}
+              {(detailAppt.notes || detailAppt.clients?.notes) && (
+                <div className="mt-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200">
+                  <span className="font-bold block mb-0.5">📝 Nota del cliente:</span>
+                  <p className="italic">{detailAppt.notes || detailAppt.clients?.notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Servicio y Profesional */}
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40">
+                <span className="text-zinc-500">Servicio solicitado:</span>
+                <span className="font-bold text-zinc-900 dark:text-white">
+                  {detailAppt.service_name || detailAppt.services?.name || "Servicio"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40">
+                <span className="text-zinc-500">Profesional asignado:</span>
+                <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-white">
+                  {detailAppt.barber_staff && (
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: detailAppt.barber_staff.avatar_color || "#4f46e5" }}
+                    />
+                  )}
+                  <span>{detailAppt.barber_staff?.name || "Equipo del salón"}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40">
+                <span className="text-zinc-500">Importe y Duración:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 font-mono">
+                    {detailAppt.total_duration || detailAppt.services?.duration_minutes || 30} min
+                  </span>
+                  <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">
+                    {detailAppt.total_price || (detailAppt.services && detailAppt.services.price)} €
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Cambiar Estado Rápido */}
+            <div>
+              <span className="text-[11px] font-bold text-zinc-500 block mb-1.5">
+                Cambiar estado de la cita:
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdateStatus(detailAppt.id, "confirmada");
+                    setDetailAppt((prev) => ({ ...prev, status: "confirmada" }));
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition ${
+                    detailAppt.status === "confirmada"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50"
+                  }`}
+                >
+                  Confirmada
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdateStatus(detailAppt.id, "no_vino");
+                    setDetailAppt((prev) => ({ ...prev, status: "no_vino" }));
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition ${
+                    detailAppt.status === "no_vino"
+                      ? "bg-rose-600 text-white border-rose-600"
+                      : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50"
+                  }`}
+                >
+                  No vino
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdateStatus(detailAppt.id, "cancelada");
+                    setDetailAppt((prev) => ({ ...prev, status: "cancelada" }));
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition ${
+                    detailAppt.status === "cancelada"
+                      ? "bg-zinc-700 text-white border-zinc-700"
+                      : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50"
+                  }`}
+                >
+                  Cancelada
+                </button>
+              </div>
+            </div>
+
+            {/* Botón Cobrar o Cerrar */}
+            <div className="pt-2 flex items-center gap-2">
+              {detailAppt.status !== "completada" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const appt = detailAppt;
+                    setDetailAppt(null);
+                    setPaymentModalAppt(appt);
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 shadow-xs transition"
+                >
+                  <Euro className="w-4 h-4" />
+                  <span>Cobrar Cita ({detailAppt.total_price || (detailAppt.services && detailAppt.services.price)} €)</span>
+                </button>
+              ) : (
+                <div className="flex-1 py-2 px-3 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold text-center">
+                  ✅ Cita completada y cobrada ({detailAppt.payment_method || "efectivo"})
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setDetailAppt(null)}
+                className="py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
