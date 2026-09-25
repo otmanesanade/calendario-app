@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import GlowfyLogo from "../../components/GlowfyLogo";
 import { supabase } from "../../lib/supabaseClient";
 import {
@@ -13,16 +13,63 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldCheck,
+  KeyRound,
+  RefreshCw,
 } from "lucide-react";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionChecking, setSessionChecking] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [emailHint, setEmailHint] = useState("");
+
+  useEffect(() => {
+    async function initRecoverySession() {
+      try {
+        const code = searchParams.get("code");
+        const emailFromQuery = searchParams.get("email");
+        if (emailFromQuery) {
+          setEmailHint(emailFromQuery);
+        }
+
+        // If Supabase sent a PKCE code in query
+        if (code && supabase.auth.exchangeCodeForSession) {
+          await supabase.auth.exchangeCodeForSession(code);
+        }
+
+        // Check if there's an active session or recovery session
+        if (supabase.auth.getSession) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.email) {
+            setEmailHint(session.user.email);
+          }
+        }
+
+        // Listen for PASSWORD_RECOVERY event
+        if (supabase.auth.onAuthStateChange) {
+          const { data: listener } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+              if (event === "PASSWORD_RECOVERY" && session?.user?.email) {
+                setEmailHint(session.user.email);
+              }
+            }
+          );
+        }
+      } catch (err) {
+        console.warn("Error checking recovery session:", err);
+      } finally {
+        setSessionChecking(false);
+      }
+    }
+
+    initRecoverySession();
+  }, [searchParams]);
 
   async function handlePasswordUpdate(e) {
     e.preventDefault();
@@ -48,7 +95,7 @@ export default function ResetPasswordPage() {
       if (updateError) {
         setError(
           updateError.message ||
-            "No se ha podido actualizar la contraseña. Por favor solicita un nuevo enlace."
+            "El enlace ha expirado o no es válido. Por favor solicita un nuevo enlace de recuperación."
         );
         setLoading(false);
         return;
@@ -57,7 +104,7 @@ export default function ResetPasswordPage() {
       setSuccess(true);
       setTimeout(() => {
         router.push("/login?reset=success");
-      }, 2500);
+      }, 2000);
     } catch (err) {
       console.error(err);
       setError("Error al guardar la nueva contraseña. Inténtalo de nuevo.");
@@ -66,6 +113,134 @@ export default function ResetPasswordPage() {
     }
   }
 
+  if (sessionChecking) {
+    return (
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl text-center space-y-3">
+        <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-zinc-500">Verificando enlace de seguridad...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 p-6 md:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl">
+      {emailHint && (
+        <div className="mb-4 p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+          <KeyRound className="w-4 h-4 flex-shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <span>Restableciendo contraseña para: <strong>{emailHint}</strong></span>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-300 font-medium">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {success ? (
+        <div className="text-center py-4 space-y-4">
+          <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-zinc-900 dark:text-white">
+              ¡Contraseña actualizada con éxito!
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">
+              Tu contraseña ha sido restablecida. Te redirigiremos al inicio de sesión...
+            </p>
+          </div>
+          <Link
+            href="/login?reset=success"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:underline pt-2"
+          >
+            <span>Ir al inicio de sesión ahora</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      ) : (
+        <form onSubmit={handlePasswordUpdate} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
+              Nueva Contraseña
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                <Lock className="w-4 h-4" />
+              </div>
+              <input
+                required
+                minLength={6}
+                type={showPassword ? "text" : "password"}
+                placeholder="Mínimo 6 caracteres"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full py-2.5 pl-10 pr-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
+              Confirmar Nueva Contraseña
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <input
+                required
+                minLength={6}
+                type={showPassword ? "text" : "password"}
+                placeholder="Repite la contraseña"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full py-2.5 pl-10 pr-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !password || !confirmPassword}
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] disabled:opacity-50 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Guardando contraseña...</span>
+              </>
+            ) : (
+              <>
+                <span>Guardar nueva contraseña</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+
+          <div className="text-center pt-2">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
+            >
+              ¿Enlace caducado? Solicitar otro enlace
+            </Link>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 text-zinc-900 dark:text-zinc-100">
       <div className="max-w-md w-full">
@@ -85,105 +260,15 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        {/* Tarjeta */}
-        <div className="bg-white dark:bg-zinc-900 p-6 md:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl">
-          {error && (
-            <div className="mb-5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-300 font-medium">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
+        <Suspense
+          fallback={
+            <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl text-center">
+              <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
             </div>
-          )}
-
-          {success ? (
-            <div className="text-center py-4 space-y-4">
-              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-zinc-900 dark:text-white">
-                  ¡Contraseña actualizada con éxito!
-                </h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">
-                  Tu contraseña ha sido restablecida. Te redirigiremos al inicio de sesión...
-                </p>
-              </div>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:underline pt-2"
-              >
-                <span>Ir al inicio de sesión ahora</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          ) : (
-            <form onSubmit={handlePasswordUpdate} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Nueva Contraseña
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    required
-                    minLength={6}
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 6 caracteres"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full py-2.5 pl-10 pr-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Confirmar Nueva Contraseña
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <input
-                    required
-                    minLength={6}
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Repite la contraseña"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full py-2.5 pl-10 pr-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || !password || !confirmPassword}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] disabled:opacity-50 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Guardando contraseña...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Guardar nueva contraseña</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-        </div>
+          }
+        >
+          <ResetPasswordForm />
+        </Suspense>
       </div>
     </main>
   );

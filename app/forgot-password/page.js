@@ -153,28 +153,28 @@ export default function ForgotPasswordPage() {
                   <span>Pasos siguientes:</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  1. Abre el enlace que te hemos enviado a tu correo.<br />
-                  2. Escribe tu nueva contraseña segura.<br />
-                  3. Inicia sesión con tus nuevas credenciales.
+                  1. Abre el correo que te acabamos de enviar.<br />
+                  2. Haz clic en el enlace seguro dentro del mensaje.<br />
+                  3. Introduce tu nueva contraseña.
                 </p>
               </div>
 
-              {/* Botón directo para restablecer */}
-              <Link
-                href={`/reset-password?email=${encodeURIComponent(email)}`}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Crear nueva contraseña ahora</span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setSubmitted(false)}
-                className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline pt-1"
-              >
-                ¿No te ha llegado? Probar con otro correo
-              </button>
+              <div className="pt-2 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSubmitted(false)}
+                  className="w-full py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium rounded-xl text-xs transition"
+                >
+                  ¿No has recibido el correo? Probar de nuevo
+                </button>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline pt-1"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Volver a Iniciar Sesión</span>
+                </Link>
+              </div>
             </div>
           )}
         </div>
