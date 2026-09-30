@@ -24,6 +24,8 @@ import {
   Share2,
   Award,
   Gift,
+  Copy,
+  Smartphone,
 } from "lucide-react";
 import QrCodeModal from "../../components/QrCodeModal";
 import { dispatchNewAppointment } from "../../lib/notifications";
@@ -96,6 +98,7 @@ export default function PublicBookingPage() {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [showQrModal, setShowQrModal] = useState(false);
+  const [bizumCopied, setBizumCopied] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState("");
@@ -731,6 +734,66 @@ ${notes ? `📝 Nota: ${notes}\n` : ""}¡Muchas gracias!`;
               </div>
             )}
           </div>
+
+          {/* Opciones de Pago: En el local o Bizum */}
+          {barber.bizum_enabled !== false && (
+            <div className="bg-gradient-to-br from-cyan-50/80 to-cyan-100/40 dark:from-cyan-950/40 dark:to-zinc-800/80 border border-cyan-200 dark:border-cyan-800/80 rounded-2xl p-4 text-left mb-6 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-cyan-600 text-white font-black text-[10px] uppercase tracking-wider">
+                    Bizum
+                  </span>
+                  <span className="text-xs font-bold text-zinc-900 dark:text-white">
+                    Pago disponible
+                  </span>
+                </div>
+                <span className="text-[10px] text-zinc-500 font-medium">
+                  O abona en el local
+                </span>
+              </div>
+
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-snug mb-3">
+                Puedes abonar tu cita cómodamente en el local (Efectivo o Tarjeta), o si prefieres adelantar el pago mediante Bizum:
+              </p>
+
+              <div className="bg-white dark:bg-zinc-900 rounded-xl p-3 border border-cyan-200/60 dark:border-cyan-900/60 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-semibold text-zinc-400">Teléfono Bizum:</div>
+                  <div className="font-extrabold text-sm text-zinc-900 dark:text-white font-mono">
+                    {barber.bizum_phone || barber.phone || "+34 612 345 678"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = (barber.bizum_phone || barber.phone || "+34 612 345 678").replace(/[^0-9+]/g, "");
+                    navigator.clipboard.writeText(p);
+                    setBizumCopied(true);
+                    setTimeout(() => setBizumCopied(false), 2500);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold flex items-center gap-1 transition shadow-xs"
+                >
+                  {bizumCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copiar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {barber.bizum_instructions && (
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-2">
+                  💡 Concepto: <em>{barber.bizum_instructions}</em>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Acciones */}
           <div className="space-y-3">

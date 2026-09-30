@@ -20,6 +20,10 @@ import {
   Sparkles,
   Star,
   MessageSquare,
+  Smartphone,
+  CreditCard,
+  Banknote,
+  Copy,
 } from "lucide-react";
 
 const DIAS_LABORABLES = [
@@ -77,6 +81,13 @@ export default function AjustesPage() {
   const [googleReviewUrl, setGoogleReviewUrl] = useState("");
   const [googleReviewMessage, setGoogleReviewMessage] = useState(
     "¡Hola {nombre}! Muchas gracias por tu visita a {negocio} 💈✂️ ¿Qué tal te pareció el resultado? Nos ayudarías mucho dejándonos tu valoración en Google (sólo 15 segundos): {enlace} ⭐ ¡Muchísimas gracias!"
+  );
+
+  // Configuración de Bizum y Métodos de Cobro
+  const [bizumEnabled, setBizumEnabled] = useState(true);
+  const [bizumPhone, setBizumPhone] = useState("");
+  const [bizumInstructions, setBizumInstructions] = useState(
+    "Indica tu nombre y fecha/hora de la cita en el concepto de Bizum."
   );
 
   // Carga inicial y combinación con copias locales para persistencia absoluta
@@ -139,6 +150,11 @@ export default function AjustesPage() {
         setGoogleReviewUrl(mergedBarber.google_review_url || "");
         if (mergedBarber.google_review_message) {
           setGoogleReviewMessage(mergedBarber.google_review_message);
+        }
+        setBizumEnabled(mergedBarber.bizum_enabled !== false);
+        setBizumPhone(mergedBarber.bizum_phone || mergedBarber.phone || "");
+        if (mergedBarber.bizum_instructions) {
+          setBizumInstructions(mergedBarber.bizum_instructions);
         }
       } else {
         const fallbackName = user?.email?.split("@")[0] || "Mi Negocio";
@@ -281,6 +297,9 @@ export default function AjustesPage() {
       loyalty_reward_text: loyaltyRewardText.trim() || "Corte o servicio gratis",
       google_review_url: googleReviewUrl.trim(),
       google_review_message: googleReviewMessage.trim(),
+      bizum_enabled: Boolean(bizumEnabled),
+      bizum_phone: bizumPhone.trim() || cleanPhone,
+      bizum_instructions: bizumInstructions.trim(),
     };
 
     try {
@@ -978,6 +997,116 @@ export default function AjustesPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* SECCIÓN 5: BIZUM & MÉTODOS DE COBRO EN RESERVAS ONLINE */}
+        <div className="bg-white dark:bg-zinc-900 p-5 md:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-white flex items-center gap-2">
+                  <span>Bizum & Cobros del Local</span>
+                  <span className="text-[10px] bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 px-2 py-0.5 rounded-full font-bold">
+                    🇪🇸 España
+                  </span>
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Permite a tus clientes pagar o anticipar su servicio por Bizum además de pagar en el local con efectivo o tarjeta.
+                </p>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer self-start sm:self-center">
+              <input
+                type="checkbox"
+                checked={bizumEnabled}
+                onChange={(e) => setBizumEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600" />
+              <span className="ml-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                {bizumEnabled ? "Bizum Activo" : "Bizum Desactivado"}
+              </span>
+            </label>
+          </div>
+
+          {bizumEnabled && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                      Teléfono asignado para recibir Bizum
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setBizumPhone(phone || "+34 600 000 000")}
+                      className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
+                    >
+                      Usar teléfono del local
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Smartphone className="w-4 h-4 text-cyan-500 absolute left-3 top-2.5" />
+                    <input
+                      type="tel"
+                      value={bizumPhone}
+                      onChange={(e) => setBizumPhone(e.target.value)}
+                      placeholder="+34 612 345 678"
+                      className="w-full py-2 pl-9 pr-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-semibold outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-1">
+                    Este número se mostrará a los clientes cuando reserven para que envíen el importe.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Concepto / Instrucciones para el cliente
+                  </label>
+                  <input
+                    type="text"
+                    value={bizumInstructions}
+                    onChange={(e) => setBizumInstructions(e.target.value)}
+                    placeholder="Ej. Indica tu nombre y hora de la cita en Bizum"
+                    className="w-full py-2 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm outline-none focus:border-cyan-500"
+                  />
+                  <p className="text-[11px] text-zinc-400 mt-1">
+                    Texto orientativo para identificar rápidamente el pago en tu aplicación bancaria.
+                  </p>
+                </div>
+              </div>
+
+              {/* Vista previa de cómo lo verá el cliente en su pantalla de reserva */}
+              <div className="p-4 rounded-2xl bg-cyan-50/60 dark:bg-cyan-950/30 border border-cyan-200/80 dark:border-cyan-800/60 text-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-800 dark:text-cyan-300 block mb-2">
+                  Vista previa de cómo lo ve el cliente al reservar:
+                </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-zinc-900 rounded-xl border border-cyan-100 dark:border-zinc-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                      bizum
+                    </div>
+                    <div>
+                      <div className="font-bold text-zinc-900 dark:text-white">
+                        {bizumPhone || phone || "+34 612 345 678"}
+                      </div>
+                      <div className="text-[11px] text-zinc-500">
+                        {bizumInstructions || "Indica tu nombre y fecha/hora de la cita."}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 font-bold text-[10px] rounded-lg self-start sm:self-auto">
+                    Pago disponible
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Botón Guardar todos los cambios */}
