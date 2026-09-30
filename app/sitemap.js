@@ -1,5 +1,5 @@
 export default function sitemap() {
-  const baseUrl = "https://ais-pre-r43enrlewo7ya3dvhigaij-775739009472.europe-west2.run.app";
+  const baseUrl = "https://www.glowfy.es";
 
   return [
     {

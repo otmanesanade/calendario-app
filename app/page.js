@@ -1110,6 +1110,135 @@ export default function Home() {
         </div>
       </section>
 
+      {/* 10.5. COMPARATIVA Y SEO LOCAL ESPAÑA */}
+      <section id="espana" className="py-20 px-4 sm:px-6 max-w-6xl mx-auto">
+        <div className="text-center mb-14">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold mb-3">
+            <span>🇪🇸 La Alternativa Española a Booksy, Fresha y Treatwell</span>
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight max-w-3xl mx-auto leading-tight">
+            Por qué los salones de toda España eligen Glowfy
+          </h2>
+          <p className="text-base text-slate-600 mt-3 max-w-2xl mx-auto">
+            Compara tú mismo las ventajas frente a plataformas extranjeras que te cobran comisiones por tus propios clientes.
+          </p>
+        </div>
+
+        {/* Tabla Comparativa */}
+        <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-100 mb-16">
+          <table className="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/70">
+                <th className="py-4 px-5 font-bold text-slate-700">Funcionalidad</th>
+                <th className="py-4 px-5 font-extrabold text-emerald-700 bg-emerald-50/80">
+                  <div className="flex items-center gap-1.5">
+                    <GlowfyLogo size={18} />
+                    <span>Glowfy España</span>
+                  </div>
+                </th>
+                <th className="py-4 px-5 font-bold text-slate-400">Booksy / Fresha / Treatwell</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td className="py-3.5 px-5 font-semibold">Comisión por cita de clientes</td>
+                <td className="py-3.5 px-5 font-bold text-emerald-700 bg-emerald-50/30">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs">
+                    ✓ 0 € (Tus clientes son tuyos)
+                  </span>
+                </td>
+                <td className="py-3.5 px-5 text-rose-500 font-medium">Hasta 20% - 30% o cobro por nuevo cliente</td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-5 font-semibold">Cobro con Bizum en caja</td>
+                <td className="py-3.5 px-5 font-bold text-emerald-700 bg-emerald-50/30">
+                  ✓ Desglose nativo en Caja Diaria
+                </td>
+                <td className="py-3.5 px-5 text-slate-400">✗ No integrado</td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-5 font-semibold">Recordatorios por WhatsApp</td>
+                <td className="py-3.5 px-5 font-bold text-emerald-700 bg-emerald-50/30">
+                  ✓ Mensajes directos con 1 clic sin coste extra
+                </td>
+                <td className="py-3.5 px-5 text-slate-400">✗ Paquetes caros de SMS de pago por uso</td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-5 font-semibold">Horario partido con siesta española</td>
+                <td className="py-3.5 px-5 font-bold text-emerald-700 bg-emerald-50/30">
+                  ✓ Turno mañana/tarde con bloqueo automático
+                </td>
+                <td className="py-3.5 px-5 text-slate-400">✗ Difícil configuración anglosajona</td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-5 font-semibold">Reseñas de Google Maps automáticas</td>
+                <td className="py-3.5 px-5 font-bold text-emerald-700 bg-emerald-50/30">
+                  ✓ Enlace de 5 estrellas al terminar la cita
+                </td>
+                <td className="py-3.5 px-5 text-slate-400">✗ Se quedan las valoraciones en su app</td>
+              </tr>
+              <tr>
+                <td className="py-3.5 px-5 font-semibold">Facturación y fiscalidad</td>
+                <td className="py-3.5 px-5 font-bold text-emerald-700 bg-emerald-50/30">
+                  ✓ Factura española con IVA 21% desglosado
+                </td>
+                <td className="py-3.5 px-5 text-slate-400">Facturación intracomunitaria compleja</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Cobertura en Ciudades de España (SEO Local) */}
+        <div className="p-7 sm:p-9 rounded-3xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white text-center">
+          <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">
+            <MapPin className="w-4 h-4" />
+            <span>Presencia en toda España</span>
+          </div>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">
+            El programa de gestión preferido por salones en las principales ciudades
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-2xl mx-auto mb-6">
+            Desde barberías clásicas en el centro de Madrid o Gràcia en Barcelona, hasta centros de estética en Valencia, Sevilla, Málaga y Bilbao. Glowfy se adapta a cualquier tamaño de negocio.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+            {[
+              "Madrid",
+              "Barcelona",
+              "Valencia",
+              "Sevilla",
+              "Zaragoza",
+              "Málaga",
+              "Murcia",
+              "Palma de Mallorca",
+              "Las Palmas",
+              "Bilbao",
+              "Alicante",
+              "Córdoba",
+              "Valladolid",
+              "Vigo",
+              "Gijón",
+              "Granada",
+              "A Coruña",
+              "Vitoria-Gasteiz",
+              "Donostia-San Sebastián",
+              "Santa Cruz de Tenerife",
+              "Pamplona",
+              "Almería",
+              "Santander",
+              "Castellón"
+            ].map((city) => (
+              <span
+                key={city}
+                className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 font-medium shadow-xs hover:border-emerald-500 hover:text-emerald-700 transition cursor-default"
+              >
+                📍 {city}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* 11. FAQ SECTION */}
       <section id="faq" className="py-20 bg-white border-y border-slate-200/80 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
