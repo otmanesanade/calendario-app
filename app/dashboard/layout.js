@@ -21,6 +21,7 @@ import {
   QrCode,
   Tablet,
   Download,
+  TrendingUp,
 } from "lucide-react";
 import QrCodeModal from "../../components/QrCodeModal";
 import PwaInstallModal from "../../components/PwaInstallModal";
@@ -28,8 +29,9 @@ import NotificationCenter from "../../components/NotificationCenter";
 
 const NAV = [
   { href: "/dashboard", label: "Agenda diaria", icon: CalendarDays },
+  { href: "/dashboard/caja?tab=mensual", label: "Ingresos por Mes", icon: TrendingUp },
+  { href: "/dashboard/caja?tab=diaria", label: "Caja Diaria & Cobros", icon: Receipt },
   { href: "/dashboard/qr", label: "Código QR & Cartel", icon: QrCode },
-  { href: "/dashboard/caja", label: "Caja & Finanzas", icon: Receipt },
   { href: "/dashboard/equipo", label: "Equipo & Sillones", icon: Users },
   { href: "/dashboard/clientes", label: "Clientes (CRM)", icon: Users },
   { href: "/dashboard/servicios", label: "Servicios y Tarifas", icon: Scissors },
@@ -140,6 +142,16 @@ export default function DashboardLayout({ children }) {
     router.push("/login");
   }
 
+  function isItemActive(href) {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    const [itemPath, itemQuery] = href.split("?");
+    if (pathname !== itemPath) return false;
+    if (itemQuery && typeof window !== "undefined") {
+      return window.location.search.includes(itemQuery);
+    }
+    return true;
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       {/* Barra superior con datos del negocio y enlace público */}
@@ -240,7 +252,7 @@ export default function DashboardLayout({ children }) {
           {/* Navegación lateral para Desktop */}
           <nav className="hidden md:flex flex-col gap-1.5 md:w-60 flex-shrink-0">
             {NAV.map((item) => {
-              const active = pathname === item.href;
+              const active = isItemActive(item.href);
               const Icon = item.icon;
               return (
                 <Link
@@ -301,7 +313,7 @@ export default function DashboardLayout({ children }) {
               </button>
             )}
             {NAV.map((item) => {
-              const active = pathname === item.href;
+              const active = isItemActive(item.href);
               const Icon = item.icon;
               return (
                 <Link
@@ -328,7 +340,7 @@ export default function DashboardLayout({ children }) {
       {/* Barra de Navegación Inferior Móvil (Fija) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 px-2 py-1.5 flex justify-around items-center shadow-lg">
         {NAV.slice(0, 5).map((item) => {
-          const active = pathname === item.href;
+          const active = isItemActive(item.href);
           const Icon = item.icon;
           return (
             <Link

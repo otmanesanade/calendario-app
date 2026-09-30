@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabaseClient";
 import {
@@ -17,6 +17,8 @@ import {
   Gift,
   Sparkles,
   Star,
+  TrendingUp,
+  BarChart3,
 } from "lucide-react";
 
 export default function ClienteDetailPage() {
@@ -65,6 +67,35 @@ export default function ClienteDetailPage() {
     setSavedNotes(true);
     setTimeout(() => setSavedNotes(false), 2500);
   }
+
+  // Desglose de gasto mensual de este cliente (Kola chehar chhal dakhal had lclient)
+  const monthlySpending = useMemo(() => {
+    const map = {};
+    (visits || []).forEach((v) => {
+      if (v.status === "cancelada") return;
+      const dt = new Date(v.starts_at);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+      const monthLabel = dt.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+      const price = Number(v.services?.price) || 0;
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          label: monthLabel,
+          total: 0,
+          count: 0,
+          services: [],
+        };
+      }
+      map[key].total += price;
+      map[key].count += 1;
+      if (v.services?.name && !map[key].services.includes(v.services.name)) {
+        map[key].services.push(v.services.name);
+      }
+    });
+
+    return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
+  }, [visits]);
 
   if (loading) {
     return <div className="p-12 text-center text-xs text-zinc-500">Cargando ficha de cliente...</div>;
@@ -331,6 +362,63 @@ export default function ClienteDetailPage() {
             <span>Guardar notas</span>
           </button>
         </div>
+      </div>
+
+      {/* Control de Gasto Mensual del Cliente (Kola chehar chhal dakhal had lclient) */}
+      <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-white">
+                Gasto Mensual de este Cliente
+              </h2>
+              <p className="text-[11px] text-zinc-500">
+                Cuánto dinero ha dejado este cliente en cada mes.
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-[11px] text-zinc-400 block">Total acumulado</span>
+            <strong className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+              {totalSpent.toFixed(0)} €
+            </strong>
+          </div>
+        </div>
+
+        {monthlySpending.length === 0 ? (
+          <p className="text-xs text-zinc-400 py-3 text-center">
+            Aún no hay cobros registrados por meses para este cliente.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {monthlySpending.map((m) => (
+              <div
+                key={m.key}
+                className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs"
+              >
+                <div>
+                  <div className="font-bold text-zinc-900 dark:text-white capitalize">
+                    {m.label}
+                  </div>
+                  <div className="text-[11px] text-zinc-500 mt-0.5">
+                    {m.count} cita(s) · {m.services.join(", ")}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+                    {m.total.toFixed(0)} €
+                  </div>
+                  <div className="text-[10px] text-zinc-400">
+                    Promedio: {(m.total / m.count).toFixed(0)} € / cita
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Historial de visitas */}

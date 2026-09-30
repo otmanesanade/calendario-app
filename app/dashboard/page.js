@@ -30,8 +30,31 @@ import {
   Gift,
   Star,
   FileText,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  Receipt,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { dispatchNewAppointment } from "../../lib/notifications";
+
+const MESES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
 
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -46,6 +69,13 @@ export default function DashboardPage() {
   const [staffList, setStaffList] = useState([]);
   const [barber, setBarber] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Estados para Control Financiero de Ingresos Mensuales
+  const now = new Date();
+  const [selectedStatsMonth, setSelectedStatsMonth] = useState(now.getMonth());
+  const [selectedStatsYear, setSelectedStatsYear] = useState(now.getFullYear());
+  const [yearAppointments, setYearAppointments] = useState([]);
+  const [showMonthlyHub, setShowMonthlyHub] = useState(true);
 
   // Modal para ver y gestionar la ficha de la cita (nombre, teléfono, notas, etc.)
   const [detailAppt, setDetailAppt] = useState(null);
@@ -159,8 +189,29 @@ export default function DashboardPage() {
     }
 
     setAppointments(appts || []);
+
+    // Cargar citas de todo el año seleccionado para el panel financiero de ingresos mes a mes
+    try {
+      const startOfYear = new Date(selectedStatsYear, 0, 1, 0, 0, 0, 0);
+      const endOfYear = new Date(selectedStatsYear, 11, 31, 23, 59, 59, 999);
+
+      const { data: yAppts } = await supabase
+        .from("appointments")
+        .select(
+          "id, client_id, client_name, service_name, staff_id, starts_at, status, total_price, payment_method, payment_status, tip_amount, services(name, price), barber_staff(name)"
+        )
+        .eq("barber_id", user.id)
+        .gte("starts_at", startOfYear.toISOString())
+        .lte("starts_at", endOfYear.toISOString())
+        .order("starts_at", { ascending: true });
+
+      setYearAppointments(yAppts || []);
+    } catch (err) {
+      console.warn("Error cargando citas anuales:", err);
+    }
+
     setLoading(false);
-  }, [selectedDate, newStaffId, newServiceIds.length]);
+  }, [selectedDate, newStaffId, newServiceIds.length, selectedStatsYear]);
 
   useEffect(() => {
     loadData();
@@ -456,6 +507,104 @@ export default function DashboardPage() {
       };
     }, [appointments]);
 
+  // Cálculos financieros MENSUALES (Mes seleccionado + 12 meses del año para control de facturación)
+  const monthlyFinancials = useMemo(() => {
+    const monthsData = Array.from({ length: 12 }, (_, i) => ({
+      monthIndex: i,
+      monthName: MESES[i],
+      shortName: MESES[i].slice(0, 3),
+      ingresos: 0,
+      citas: 0,
+      bizum: 0,
+      efectivo: 0,
+      tarjeta: 0,
+      propinas: 0,
+      staffMap: {},
+      servicesMap: {},
+    }));
+
+    yearAppointments.forEach((a) => {
+      const dt = new Date(a.starts_at);
+      const mIdx = dt.getMonth();
+      const price = Number(a.total_price || (a.services && a.services.price) || 0);
+      const tip = Number(a.tip_amount || 0);
+      const method = (a.payment_method || "").toLowerCase();
+
+      if (a.status === "completada" || a.payment_status === "pagado") {
+        monthsData[mIdx].citas++;
+        monthsData[mIdx].ingresos += price;
+        monthsData[mIdx].propinas += tip;
+
+        if (method === "bizum") monthsData[mIdx].bizum += price;
+        else if (method === "tarjeta") monthsData[mIdx].tarjeta += price;
+        else monthsData[mIdx].efectivo += price;
+
+        const staffName = a.barber_staff?.name || "General";
+        const staffId = a.staff_id || "general";
+        if (!monthsData[mIdx].staffMap[staffId]) {
+          monthsData[mIdx].staffMap[staffId] = { id: staffId, name: staffName, total: 0, citas: 0 };
+        }
+        monthsData[mIdx].staffMap[staffId].total += price;
+        monthsData[mIdx].staffMap[staffId].citas++;
+
+        const srvName = a.service_name || a.services?.name || "Servicio";
+        if (!monthsData[mIdx].servicesMap[srvName]) {
+          monthsData[mIdx].servicesMap[srvName] = { name: srvName, total: 0, citas: 0 };
+        }
+        monthsData[mIdx].servicesMap[srvName].total += price;
+        monthsData[mIdx].servicesMap[srvName].citas++;
+      }
+    });
+
+    const activeMonthData = monthsData[selectedStatsMonth];
+    const prevMonthIdx = selectedStatsMonth === 0 ? 11 : selectedStatsMonth - 1;
+    const prevMonthData = monthsData[prevMonthIdx];
+
+    let growthPercent = 0;
+    if (prevMonthData.ingresos > 0) {
+      growthPercent = ((activeMonthData.ingresos - prevMonthData.ingresos) / prevMonthData.ingresos) * 100;
+    } else if (activeMonthData.ingresos > 0) {
+      growthPercent = 100;
+    }
+
+    const ticketMedio =
+      activeMonthData.citas > 0 ? activeMonthData.ingresos / activeMonthData.citas : 0;
+
+    const maxMonthRevenue = Math.max(...monthsData.map((m) => m.ingresos), 100);
+    const totalAnnual = monthsData.reduce((sum, m) => sum + m.ingresos, 0);
+    const totalCitasAnnual = monthsData.reduce((sum, m) => sum + m.citas, 0);
+
+    const currentCalendarMonth = new Date().getMonth();
+    const currentCalendarMonthData = monthsData[currentCalendarMonth];
+
+    const currentMonthPrevIdx = currentCalendarMonth === 0 ? 11 : currentCalendarMonth - 1;
+    let currentMonthGrowth = 0;
+    if (monthsData[currentMonthPrevIdx].ingresos > 0) {
+      currentMonthGrowth =
+        ((currentCalendarMonthData.ingresos - monthsData[currentMonthPrevIdx].ingresos) /
+          monthsData[currentMonthPrevIdx].ingresos) *
+        100;
+    } else if (currentCalendarMonthData.ingresos > 0) {
+      currentMonthGrowth = 100;
+    }
+
+    return {
+      monthsData,
+      activeMonthData,
+      prevMonthData,
+      growthPercent,
+      ticketMedio,
+      maxMonthRevenue,
+      totalAnnual,
+      totalCitasAnnual,
+      currentCalendarMonth,
+      currentCalendarMonthData,
+      currentMonthGrowth,
+      activeStaffList: Object.values(activeMonthData.staffMap).sort((a, b) => b.total - a.total),
+      activeTopServices: Object.values(activeMonthData.servicesMap).sort((a, b) => b.total - a.total),
+    };
+  }, [yearAppointments, selectedStatsMonth]);
+
   // Horarios de apertura, cierre e intervalos según la configuración del salón en Ajustes
   const {
     timelineHours,
@@ -706,21 +855,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Métricas rápidas del día */}
+      {/* Métricas rápidas del día y del mes */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-          <div className="text-[11px] font-medium text-zinc-500 flex items-center justify-between">
-            <span>Citas Hoy</span>
-            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-          </div>
-          <div className="text-xl font-bold text-zinc-900 dark:text-white mt-1">
-            {appointments.length}
-          </div>
-          <div className="text-[10px] text-zinc-400 mt-0.5">
-            {completadas} completadas · {pendientes} pendientes
-          </div>
-        </div>
-
+        {/* Tarjeta 1: Facturación del Día */}
         <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
           <div className="text-[11px] font-medium text-zinc-500 flex items-center justify-between">
             <span>Facturado Hoy</span>
@@ -729,39 +866,437 @@ export default function DashboardPage() {
           <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
             {totalFacturado} €
           </div>
-          <div className="text-[10px] text-zinc-400 mt-0.5">
+          <div className="text-[10px] text-zinc-400 mt-0.5 truncate">
             {totalBizum > 0 && <span>Bizum: {totalBizum}€ · </span>}
             Efectivo: {totalEfectivo}€
           </div>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
-          <div className="text-[11px] font-medium text-zinc-500 flex items-center justify-between">
-            <span>Asistencia</span>
-            <CheckCircle className="w-3.5 h-3.5 text-cyan-500" />
+        {/* Tarjeta 2: Ingresos del Mes en Curso (Kola chehar chhal dakhal) */}
+        <div className="bg-gradient-to-br from-indigo-50/70 via-white to-white dark:from-indigo-950/30 dark:via-zinc-900 dark:to-zinc-900 p-3.5 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/60 shadow-xs relative overflow-hidden">
+          <div className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 flex items-center justify-between">
+            <span>Ingresos {MESES[new Date().getMonth()]}</span>
+            <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
           </div>
-          <div className="text-xl font-bold text-zinc-900 dark:text-white mt-1">
-            {appointments.length > 0
-              ? `${(((appointments.length - noShows) / appointments.length) * 100).toFixed(0)}%`
-              : "100%"}
+          <div className="text-xl font-black text-zinc-900 dark:text-white mt-1">
+            {monthlyFinancials.currentCalendarMonthData.ingresos.toFixed(0)} €
           </div>
-          <div className="text-[10px] text-zinc-400 mt-0.5">
-            {noShows === 0 ? "Sin ausencias hoy" : `${noShows} No-Shows`}
+          <div className="text-[10px] mt-0.5 flex items-center gap-1 font-semibold">
+            {monthlyFinancials.currentMonthGrowth >= 0 ? (
+              <span className="text-emerald-600 dark:text-emerald-400 inline-flex items-center">
+                <ArrowUpRight className="w-3 h-3" />
+                +{monthlyFinancials.currentMonthGrowth.toFixed(0)}%
+              </span>
+            ) : (
+              <span className="text-rose-600 dark:text-rose-400 inline-flex items-center">
+                <ArrowDownRight className="w-3 h-3" />
+                {monthlyFinancials.currentMonthGrowth.toFixed(0)}%
+              </span>
+            )}
+            <span className="text-zinc-400 font-normal">vs mes ant.</span>
           </div>
         </div>
 
+        {/* Tarjeta 3: Citas de Hoy */}
         <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
           <div className="text-[11px] font-medium text-zinc-500 flex items-center justify-between">
-            <span>Equipo Activo</span>
-            <Users className="w-3.5 h-3.5 text-amber-500" />
+            <span>Citas Hoy</span>
+            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
           </div>
           <div className="text-xl font-bold text-zinc-900 dark:text-white mt-1">
-            {staffList.length} barberos
+            {appointments.length}
           </div>
-          <div className="text-[10px] text-zinc-400 mt-0.5">
-            {staffList.map((s) => s.name).join(", ")}
+          <div className="text-[10px] text-zinc-400 mt-0.5 truncate">
+            {completadas} completadas · {pendientes} pendientes
           </div>
         </div>
+
+        {/* Tarjeta 4: Citas del Mes & Ticket Medio */}
+        <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+          <div className="text-[11px] font-medium text-zinc-500 flex items-center justify-between">
+            <span>Citas del Mes</span>
+            <Scissors className="w-3.5 h-3.5 text-amber-500" />
+          </div>
+          <div className="text-xl font-bold text-zinc-900 dark:text-white mt-1">
+            {monthlyFinancials.currentCalendarMonthData.citas}
+          </div>
+          <div className="text-[10px] text-zinc-400 mt-0.5">
+            Ticket medio:{" "}
+            <strong className="text-zinc-700 dark:text-zinc-300 font-bold">
+              {monthlyFinancials.currentCalendarMonthData.citas > 0
+                ? (
+                    monthlyFinancials.currentCalendarMonthData.ingresos /
+                    monthlyFinancials.currentCalendarMonthData.citas
+                  ).toFixed(1)
+                : 0}{" "}
+              €
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* HUB FINANCIERO INTERACTIVO: INGRESOS MES A MES             */}
+      {/* ========================================================= */}
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 shadow-sm space-y-4">
+        {/* Cabecera del Panel */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-zinc-900 dark:text-white tracking-tight">
+                  Control de Ingresos Mes a Mes
+                </h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                  {selectedStatsYear}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Consulta cuánto dinero entra en el negocio cada mes, formas de cobro y rendimiento.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <Link
+              href={`/dashboard/caja?tab=mensual&month=${selectedStatsMonth}&year=${selectedStatsYear}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 text-xs font-bold transition shadow-xs"
+              title="Abrir informe mensual completo con impresión y cierre contable"
+            >
+              <Receipt className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Ver en Caja & Finanzas</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+
+            <button
+              onClick={() => setShowMonthlyHub((prev) => !prev)}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+              title={showMonthlyHub ? "Ocultar panel mensual" : "Mostrar panel mensual"}
+            >
+              {showMonthlyHub ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {showMonthlyHub && (
+          <div className="space-y-4">
+            {/* Selector de Meses Horizontal */}
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-zinc-500 font-medium mb-2">
+                <span>Elige un mes para consultar su desglose detallado:</span>
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  Total acumulado {selectedStatsYear}:{" "}
+                  <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
+                    {monthlyFinancials.totalAnnual.toFixed(0)} €
+                  </strong>{" "}
+                  ({monthlyFinancials.totalCitasAnnual} citas)
+                </span>
+              </div>
+
+              {/* Botones de Meses */}
+              <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5 sm:gap-2">
+                {monthlyFinancials.monthsData.map((m, idx) => {
+                  const isSelected = idx === selectedStatsMonth;
+                  const isCurrentCalendar = idx === new Date().getMonth();
+                  const hasRevenue = m.ingresos > 0;
+
+                  return (
+                    <button
+                      key={m.shortName}
+                      type="button"
+                      onClick={() => setSelectedStatsMonth(idx)}
+                      className={`p-2 rounded-xl flex flex-col items-center justify-center transition text-center relative border ${
+                        isSelected
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20 ring-2 ring-indigo-400/40"
+                          : hasRevenue
+                          ? "bg-zinc-50 dark:bg-zinc-800/80 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-700"
+                          : "bg-zinc-50/50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border-zinc-100 dark:border-zinc-800/80"
+                      }`}
+                    >
+                      {isCurrentCalendar && (
+                        <span
+                          className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${
+                            isSelected
+                              ? "bg-emerald-300 ring-2 ring-indigo-600"
+                              : "bg-emerald-500"
+                          }`}
+                          title="Mes actual"
+                        />
+                      )}
+                      <span className={`text-[11px] font-bold ${isSelected ? "text-white" : ""}`}>
+                        {m.shortName}
+                      </span>
+                      <span
+                        className={`text-[10px] mt-0.5 font-extrabold ${
+                          isSelected
+                            ? "text-indigo-100"
+                            : hasRevenue
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-zinc-400 dark:text-zinc-600"
+                        }`}
+                      >
+                        {hasRevenue ? `${m.ingresos.toFixed(0)}€` : "0€"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Ficha de Detalles del Mes Seleccionado ({MESES[selectedStatsMonth]}) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
+              {/* Bloque 1: Ingreso Total del Mes */}
+              <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 dark:from-zinc-800 dark:via-zinc-850 dark:to-zinc-900 text-white p-5 rounded-2xl border border-zinc-800 dark:border-zinc-700 flex flex-col justify-between shadow-sm">
+                <div>
+                  <div className="flex items-center justify-between text-zinc-400 text-xs">
+                    <span>Ingresos {MESES[selectedStatsMonth]}</span>
+                    <Euro className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-3xl font-black mt-2 text-white tracking-tight">
+                    {monthlyFinancials.activeMonthData.ingresos.toFixed(0)} €
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-1.5 text-xs">
+                    {monthlyFinancials.growthPercent >= 0 ? (
+                      <span className="inline-flex items-center gap-0.5 text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded-lg border border-emerald-800/60">
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                        +{monthlyFinancials.growthPercent.toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 text-rose-400 font-bold bg-rose-950/80 px-2 py-0.5 rounded-lg border border-rose-800/60">
+                        <ArrowDownRight className="w-3.5 h-3.5" />
+                        {monthlyFinancials.growthPercent.toFixed(1)}%
+                      </span>
+                    )}
+                    <span className="text-zinc-400 text-[11px]">vs mes anterior</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-zinc-800 text-xs">
+                  <div>
+                    <span className="text-zinc-400 text-[11px] block">Citas cobradas</span>
+                    <strong className="text-white font-bold text-sm">
+                      {monthlyFinancials.activeMonthData.citas}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 text-[11px] block">Ticket medio</span>
+                    <strong className="text-white font-bold text-sm">
+                      {monthlyFinancials.ticketMedio.toFixed(2)} €
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bloque 2: Formas de Pago del Mes */}
+              <div className="bg-zinc-50 dark:bg-zinc-800/60 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 flex flex-col justify-between">
+                <div className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300 flex items-center justify-between mb-2">
+                  <span>Formas de Cobro ({MESES[selectedStatsMonth]})</span>
+                  <Receipt className="w-4 h-4 text-indigo-500" />
+                </div>
+
+                <div className="space-y-2.5">
+                  {/* Bizum */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-cyan-700 dark:text-cyan-400 flex items-center gap-1.5">
+                        <Smartphone className="w-3.5 h-3.5" /> Bizum:
+                      </span>
+                      <strong className="text-zinc-900 dark:text-white font-bold">
+                        {monthlyFinancials.activeMonthData.bizum.toFixed(0)} €
+                      </strong>
+                    </div>
+                    <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-cyan-500 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${
+                            monthlyFinancials.activeMonthData.ingresos > 0
+                              ? (monthlyFinancials.activeMonthData.bizum /
+                                  monthlyFinancials.activeMonthData.ingresos) *
+                                100
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Efectivo */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5" /> Efectivo:
+                      </span>
+                      <strong className="text-zinc-900 dark:text-white font-bold">
+                        {monthlyFinancials.activeMonthData.efectivo.toFixed(0)} €
+                      </strong>
+                    </div>
+                    <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${
+                            monthlyFinancials.activeMonthData.ingresos > 0
+                              ? (monthlyFinancials.activeMonthData.efectivo /
+                                  monthlyFinancials.activeMonthData.ingresos) *
+                                100
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tarjeta */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5" /> Tarjeta:
+                      </span>
+                      <strong className="text-zinc-900 dark:text-white font-bold">
+                        {monthlyFinancials.activeMonthData.tarjeta.toFixed(0)} €
+                      </strong>
+                    </div>
+                    <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-indigo-500 h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${
+                            monthlyFinancials.activeMonthData.ingresos > 0
+                              ? (monthlyFinancials.activeMonthData.tarjeta /
+                                  monthlyFinancials.activeMonthData.ingresos) *
+                                100
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-700/60 text-[11px] text-zinc-500 flex items-center justify-between">
+                  <span>Propinas recibidas:</span>
+                  <strong className="text-zinc-800 dark:text-zinc-200 font-bold">
+                    {monthlyFinancials.activeMonthData.propinas.toFixed(0)} €
+                  </strong>
+                </div>
+              </div>
+
+              {/* Bloque 3: Mini Gráfico de Barras Interactivo */}
+              <div className="bg-zinc-50 dark:bg-zinc-800/60 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                    <span>Evolución {selectedStatsYear}</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-normal">
+                    Toca para cambiar mes
+                  </span>
+                </div>
+
+                {/* 12 Barras */}
+                <div className="grid grid-cols-12 gap-1 items-end h-24 pt-3 pb-1">
+                  {monthlyFinancials.monthsData.map((m, idx) => {
+                    const heightPercent =
+                      monthlyFinancials.maxMonthRevenue > 0
+                        ? Math.max(10, (m.ingresos / monthlyFinancials.maxMonthRevenue) * 100)
+                        : 10;
+                    const isSelected = idx === selectedStatsMonth;
+
+                    return (
+                      <button
+                        key={m.shortName}
+                        type="button"
+                        onClick={() => setSelectedStatsMonth(idx)}
+                        className="group flex flex-col items-center justify-end h-full w-full outline-none"
+                        title={`${m.monthName}: ${m.ingresos} €`}
+                      >
+                        <div
+                          className={`w-full rounded-t-md transition-all duration-300 ${
+                            isSelected
+                              ? "bg-indigo-600 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400"
+                              : m.ingresos > 0
+                              ? "bg-zinc-300 dark:bg-zinc-600 group-hover:bg-indigo-400"
+                              : "bg-zinc-200 dark:bg-zinc-700/50"
+                          }`}
+                          style={{ height: `${heightPercent}%` }}
+                        />
+                        <span
+                          className={`text-[8px] mt-1 font-semibold truncate ${
+                            isSelected
+                              ? "text-indigo-600 dark:text-indigo-400 font-extrabold"
+                              : "text-zinc-400"
+                          }`}
+                        >
+                          {m.shortName.slice(0, 1)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2 border-t border-zinc-200/80 dark:border-zinc-700/60 flex items-center justify-between text-[11px] text-zinc-500">
+                  <span>Promedio mensual:</span>
+                  <strong className="text-zinc-900 dark:text-white font-bold">
+                    {(monthlyFinancials.totalAnnual / 12).toFixed(0)} € / mes
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Rendimiento del Equipo en el Mes (Si hay barberos registrados) */}
+            {monthlyFinancials.activeStaffList.length > 0 && (
+              <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium mb-2">
+                  <span className="flex items-center gap-1.5 font-bold text-zinc-800 dark:text-zinc-200">
+                    <Users className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Facturación por Profesional en {MESES[selectedStatsMonth]}:</span>
+                  </span>
+                  <span className="text-[11px] text-zinc-400">
+                    {monthlyFinancials.activeStaffList.length} profesional(es) activo(s)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {monthlyFinancials.activeStaffList.map((st) => {
+                    const percent =
+                      monthlyFinancials.activeMonthData.ingresos > 0
+                        ? (st.total / monthlyFinancials.activeMonthData.ingresos) * 100
+                        : 0;
+
+                    return (
+                      <div
+                        key={st.id}
+                        className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/60 dark:border-zinc-700/60 flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <div className="font-bold text-zinc-900 dark:text-white">
+                            {st.name}
+                          </div>
+                          <div className="text-[11px] text-zinc-400">
+                            {st.citas} citas · {percent.toFixed(0)}% del mes
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+                            {st.total.toFixed(0)} €
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* VISTA 1: TIMELINE GRID ESTILO BOOKSY / FRESHA */}
