@@ -155,6 +155,10 @@ const jsonLdOrg = {
     "@type": "Country",
     name: "España",
   },
+  sameAs: [
+    "https://www.instagram.com/glowfy.es/",
+    "https://www.facebook.com/profile.php?id=61594867821190",
+  ],
 };
 
 const jsonLdFaq = {

@@ -35,6 +35,36 @@ import {
   Award
 } from "lucide-react";
 
+function InstagramIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [openFaq, setOpenFaq] = useState(0);
   const [billingCycle, setBillingCycle] = useState("monthly");
@@ -1321,27 +1351,62 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer className="py-12 px-4 sm:px-8 border-t border-slate-200 text-xs text-slate-500 bg-white">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <GlowfyLogo size={28} />
-            <div>
-              <span className="font-extrabold text-sm text-slate-900 block">Glowfy España</span>
-              <span className="text-[11px] text-slate-400">Software SaaS de reservas y gestión para Barberías, Salones de Belleza y Spas.</span>
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-8 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <GlowfyLogo size={32} />
+              <div>
+                <span className="font-extrabold text-base text-slate-900 block">Glowfy España</span>
+                <span className="text-xs text-slate-500">
+                  Software SaaS de reservas online, caja y gestión para Barberías, Salones de Belleza y Spas.
+                </span>
+              </div>
+            </div>
+
+            {/* Redes Sociales Oficiales: Instagram & Facebook */}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-bold text-slate-700">Síguenos:</span>
+
+              {/* Instagram */}
+              <a
+                href="https://www.instagram.com/glowfy.es/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-amber-500/10 hover:from-pink-500/20 hover:to-amber-500/20 border border-pink-200/80 text-pink-700 font-bold text-xs transition shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+                title="Síguenos en Instagram @glowfy.es"
+              >
+                <InstagramIcon className="w-4 h-4 text-pink-600" />
+                <span>@glowfy.es</span>
+              </a>
+
+              {/* Facebook */}
+              <a
+                href="https://www.facebook.com/profile.php?id=61594867821190"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-700 font-bold text-xs transition shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+                title="Visita nuestra página oficial de Facebook Glowfy España"
+              >
+                <FacebookIcon className="w-4 h-4 text-blue-600" />
+                <span>Facebook Oficial</span>
+              </a>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-semibold text-slate-600">
-            <Link href="/login" className="hover:text-emerald-600 transition">Panel de gestión</Link>
-            <Link href="/register" className="hover:text-emerald-600 transition">Registro de centros</Link>
-            <Link href="/estudio-marco" className="hover:text-emerald-600 transition">Demo online</Link>
-            <span className="hidden sm:inline text-slate-300">|</span>
-            <Link href="/politica-de-privacidad" className="hover:text-emerald-600 transition">Política de Privacidad</Link>
-            <Link href="/terminos-de-servicio" className="hover:text-emerald-600 transition">Términos de Servicio</Link>
-          </div>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-2 font-semibold text-slate-600">
+              <Link href="/login" className="hover:text-emerald-600 transition">Panel de gestión</Link>
+              <Link href="/register" className="hover:text-emerald-600 transition">Registro de centros</Link>
+              <Link href="/estudio-marco" className="hover:text-emerald-600 transition">Demo online</Link>
+              <span className="hidden sm:inline text-slate-300">|</span>
+              <Link href="/politica-de-privacidad" className="hover:text-emerald-600 transition">Política de Privacidad</Link>
+              <Link href="/terminos-de-servicio" className="hover:text-emerald-600 transition">Términos de Servicio</Link>
+            </div>
 
-          <p className="text-slate-400 text-[11px] text-center md:text-right">
-            &copy; {new Date().getFullYear()} Glowfy España. Todos los derechos reservados.
-          </p>
+            <p className="text-slate-400 text-[11px] text-center md:text-right">
+              &copy; {new Date().getFullYear()} Glowfy España. Todos los derechos reservados. Hecho con ❤️ para salones de España.
+            </p>
+          </div>
         </div>
       </footer>
 

@@ -353,13 +353,32 @@ export default function TerminosDeServicioPage() {
 
         {/* BOTTOM NAV */}
         <div className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <Link
-            href="/politica-de-privacidad"
-            className="text-emerald-600 hover:underline font-semibold flex items-center gap-1"
-          >
-            <span>Consultar la Política de Privacidad</span>
-            <ShieldCheck className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/politica-de-privacidad"
+              className="text-emerald-600 hover:underline font-semibold flex items-center gap-1"
+            >
+              <span>Consultar la Política de Privacidad</span>
+              <ShieldCheck className="w-3.5 h-3.5" />
+            </Link>
+            <span className="text-slate-300">|</span>
+            <a
+              href="https://www.instagram.com/glowfy.es/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-pink-600 hover:underline font-semibold"
+            >
+              Instagram @glowfy.es
+            </a>
+            <a
+              href="https://www.facebook.com/profile.php?id=61594867821190"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline font-semibold"
+            >
+              Facebook
+            </a>
+          </div>
           <p>© {new Date().getFullYear()} Glowfy España. Todos los derechos reservados.</p>
         </div>
       </main>
