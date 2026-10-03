@@ -192,12 +192,9 @@ function CajaContent() {
   }, [selectedYear]);
 
   useEffect(() => {
-    if (activeTab === "diaria") {
-      loadDailyData();
-    } else {
-      loadMonthlyData();
-    }
-  }, [activeTab, loadDailyData, loadMonthlyData]);
+    loadDailyData();
+    loadMonthlyData();
+  }, [loadDailyData, loadMonthlyData]);
 
   // Navegación diaria
   function handlePrevDay() {
@@ -619,6 +616,14 @@ function CajaContent() {
         setTimeout(() => setExportSuccessMessage(null), 3000);
       }, 2500);
     });
+  }
+
+  // Copiar datos y abrir Google Sheets al instante en nueva pestaña (1 solo clic)
+  function handleCopyAndOpenSheets(type = exportType) {
+    handleCopyForGoogleSheets(type);
+    if (typeof window !== "undefined") {
+      window.open("https://sheets.new", "_blank");
+    }
   }
 
   return (
@@ -1493,65 +1498,73 @@ function CajaContent() {
 
             {/* Opciones de Exportación */}
             <div className="mt-4 space-y-3">
-              {/* Opción 1: Descargar archivo CSV */}
+              {/* Opción 1: El botón estrella 1-Clic: Copiar datos y abrir Google Sheets */}
+              <button
+                type="button"
+                onClick={() => handleCopyAndOpenSheets(exportType)}
+                className="w-full text-left p-4 rounded-2xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-emerald-50/20 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-emerald-950/10 hover:shadow-md transition flex items-start justify-between gap-3 group"
+              >
+                <div>
+                  <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-300 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
+                    <span>Copiar Datos y Abrir Google Sheets (1 Clic)</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase">
+                      Recomendado
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-600 dark:text-zinc-300 mt-1.5 leading-snug">
+                    Copia la tabla completa al portapapeles y abre una hoja en blanco en tu Google Workspace. ¡Solo tendrás que hacer clic en la casilla <strong>A1</strong> y pulsar <strong>Pegar (Ctrl+V)</strong>!
+                  </p>
+
+                  {/* Pasos visuales claros */}
+                  <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-white/80 dark:bg-zinc-800/80 p-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800">
+                    <span>1. Clic aquí</span>
+                    <span>➜</span>
+                    <span>2. En Google Sheets pulsa A1</span>
+                    <span>➜</span>
+                    <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded">3. Pulsa Ctrl + V</span>
+                  </div>
+                </div>
+
+                <span className="px-3 py-1.5 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white text-xs font-bold whitespace-nowrap transition shrink-0 mt-1 shadow-sm">
+                  {exportCopied ? "¡Copiado! 🚀" : "Abrir y Pegar ↗"}
+                </span>
+              </button>
+
+              {/* Opción 2: Descargar archivo CSV para Gestoría / Excel */}
               <button
                 type="button"
                 onClick={() => handleDownloadCSV(exportType)}
-                className="w-full text-left p-4 rounded-2xl border-2 border-emerald-500/40 hover:border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/70 transition flex items-start justify-between gap-3 group"
+                className="w-full text-left p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 bg-zinc-50/60 dark:bg-zinc-800/40 hover:bg-zinc-100/60 transition flex items-start justify-between gap-3 group"
               >
                 <div>
-                  <div className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
-                    <Download className="w-4 h-4 text-emerald-600" />
-                    <span>Descargar archivo .CSV (Excel & Google Sheets)</span>
+                  <div className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                    <Download className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+                    <span>Descargar archivo .CSV (Para mandar por WhatsApp/Email al Gestor)</span>
                   </div>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
-                    Archivo preparado para la Gestoría en España con IVA desglosado (21%), Bizum, tarjeta y efectivo. Ideal para mandar por WhatsApp o Email.
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug">
+                    Archivo estándar con IVA (21%), Bizum, tarjeta y efectivo. En Google Sheets también puedes ir a <em>Archivo ➜ Importar ➜ Subir este CSV</em>.
                   </p>
                 </div>
-                <span className="px-2.5 py-1 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white text-xs font-bold whitespace-nowrap transition shrink-0 mt-1">
-                  Descargar
+                <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 text-xs font-bold whitespace-nowrap transition shrink-0 mt-0.5">
+                  Descargar .CSV
                 </span>
               </button>
 
-              {/* Opción 2: Copiar para Google Sheets con Ctrl+V */}
+              {/* Opción 3: Solo copiar al portapapeles */}
               <button
                 type="button"
                 onClick={() => handleCopyForGoogleSheets(exportType)}
-                className="w-full text-left p-4 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:border-indigo-500 bg-white dark:bg-zinc-800/60 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition flex items-start justify-between gap-3 group"
+                className="w-full text-left p-3 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition flex items-center justify-between gap-3"
               >
-                <div>
-                  <div className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
-                    {exportCopied ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-indigo-600" />
-                    )}
-                    <span>Copiar tabla para pegar (Ctrl + V)</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
-                    Copia todas las filas formateadas al portapapeles. Solo tienes que abrir Google Sheets y pulsar Pegar.
-                  </p>
+                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Solo copiar tabla al portapapeles (sin abrir pestaña)</span>
                 </div>
-                <span className="px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-700 group-hover:bg-indigo-600 group-hover:text-white text-zinc-700 dark:text-zinc-200 text-xs font-bold whitespace-nowrap transition shrink-0 mt-1">
+                <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
                   {exportCopied ? "¡Copiado!" : "Copiar"}
                 </span>
               </button>
-
-              {/* Opción 3: Abrir Google Sheets en blanco */}
-              <a
-                href="https://sheets.new"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full text-left p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  <ExternalLink className="w-4 h-4 text-emerald-600" />
-                  <span>Abrir nueva hoja en blanco en Google Sheets (sheets.new)</span>
-                </div>
-                <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">
-                  Abrir ↗
-                </span>
-              </a>
             </div>
 
             {/* Pie del Modal */}
