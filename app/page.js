@@ -32,7 +32,8 @@ import {
   Wallet,
   Store,
   Layers,
-  Award
+  Award,
+  Mail,
 } from "lucide-react";
 
 function InstagramIcon({ className = "w-4 h-4" }) {
@@ -1317,6 +1318,26 @@ export default function Home() {
               </div>
             ))}
           </div>
+
+          {/* Tarjeta de Contacto & Soporte Oficial con soporte@glowfy.es */}
+          <div className="mt-8 p-6 rounded-2xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-slate-50 border border-emerald-200/80 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+            <div className="text-left">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <Mail className="w-4 h-4 text-emerald-600" />
+                ¿Tienes dudas o necesitas ayuda personalizada?
+              </h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Escríbenos a nuestro equipo de atención y soporte técnico en España. Te respondemos con rapidez.
+              </p>
+            </div>
+            <a
+              href="mailto:soporte@glowfy.es"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition whitespace-nowrap hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Mail className="w-4 h-4" />
+              <span>soporte@glowfy.es</span>
+            </a>
+          </div>
         </div>
       </section>
 
@@ -1363,8 +1384,20 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Redes Sociales Oficiales: Instagram & Facebook */}
+            {/* Redes Sociales Oficiales & Email de Soporte */}
             <div className="flex flex-wrap items-center gap-3">
+              {/* Email Soporte Oficial */}
+              <a
+                href="mailto:soporte@glowfy.es"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs transition shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+                title="Escríbenos a soporte@glowfy.es"
+              >
+                <Mail className="w-4 h-4 text-emerald-600" />
+                <span>soporte@glowfy.es</span>
+              </a>
+
+              <span className="hidden sm:inline text-slate-300">|</span>
+
               <span className="text-xs font-bold text-slate-700">Síguenos:</span>
 
               {/* Instagram */}

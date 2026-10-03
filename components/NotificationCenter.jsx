@@ -26,7 +26,9 @@ import {
   hasBrowserPermission,
   subscribeToAppointments,
   dispatchNewAppointment,
+  unlockAudioContext,
 } from "../lib/notifications";
+import { supabase } from "../lib/supabaseClient";
 
 export default function NotificationCenter({ onAppointmentReceived }) {
   const [notifications, setNotifications] = useState([]);
@@ -37,7 +39,7 @@ export default function NotificationCenter({ onAppointmentReceived }) {
   const toastTimeoutRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Cargar notificaciones y permisos al montar
+  // Cargar notificaciones y permisos al montar + Desbloquear audio en primera interacción
   useEffect(() => {
     setNotifications(getStoredNotifications());
     setHasPushPermission(hasBrowserPermission());
@@ -47,17 +49,25 @@ export default function NotificationCenter({ onAppointmentReceived }) {
       setSoundEnabled(savedSound === "true");
     }
 
+    function handleFirstInteraction() {
+      unlockAudioContext();
+    }
+    window.addEventListener("click", handleFirstInteraction, { once: true });
+    window.addEventListener("touchstart", handleFirstInteraction, { once: true });
+
     function handleUpdate() {
       setNotifications(getStoredNotifications());
     }
 
     window.addEventListener("glowfy_notifications_updated", handleUpdate);
     return () => {
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("touchstart", handleFirstInteraction);
       window.removeEventListener("glowfy_notifications_updated", handleUpdate);
     };
   }, []);
 
-  // Suscribirse a nuevas citas en vivo (BroadcastChannel, storage event, window event)
+  // Suscribirse a nuevas citas en vivo (BroadcastChannel, storage event, window event, Supabase Realtime y Polling)
   useEffect(() => {
     const unsubscribe = subscribeToAppointments((newAppt) => {
       // 1. Reproducir sonido si está activado
@@ -81,8 +91,90 @@ export default function NotificationCenter({ onAppointmentReceived }) {
       }
     });
 
+    // 5. Suscripción Supabase Realtime (si está disponible)
+    let realtimeChannel = null;
+    try {
+      if (supabase && typeof supabase.channel === "function") {
+        realtimeChannel = supabase
+          .channel("glowfy_appointments_realtime")
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "appointments" },
+            (payload) => {
+              const rec = payload.new;
+              if (rec) {
+                dispatchNewAppointment({
+                  id: rec.id,
+                  clientName: rec.client_name || "Nuevo cliente",
+                  clientPhone: rec.client_phone || "",
+                  serviceName: rec.service_name || "Servicio",
+                  startsAt: rec.starts_at,
+                  slot: rec.starts_at
+                    ? new Date(rec.starts_at).toLocaleTimeString("es-ES", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "",
+                  totalPrice: rec.total_price || 0,
+                  notes: rec.notes || "",
+                  barberId: rec.barber_id || "",
+                });
+              }
+            }
+          )
+          .subscribe();
+      }
+    } catch (err) {
+      console.warn("Realtime no disponible en modo local:", err);
+    }
+
+    // 6. Polling inteligente cada 12 segundos para detectar citas de otros dispositivos
+    let lastCheckedTime = new Date(Date.now() - 30000).toISOString();
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: recentAppts } = await supabase
+          .from("appointments")
+          .select("*")
+          .gte("created_at", lastCheckedTime)
+          .order("created_at", { ascending: false });
+
+        if (recentAppts && recentAppts.length > 0) {
+          const stored = getStoredNotifications();
+          const existingIds = new Set(stored.map((n) => n.id));
+
+          for (const appt of recentAppts) {
+            if (!existingIds.has(appt.id)) {
+              dispatchNewAppointment({
+                id: appt.id,
+                clientName: appt.client_name || "Nuevo cliente",
+                clientPhone: appt.client_phone || "",
+                serviceName: appt.service_name || "Servicio",
+                startsAt: appt.starts_at,
+                slot: appt.starts_at
+                  ? new Date(appt.starts_at).toLocaleTimeString("es-ES", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "",
+                totalPrice: appt.total_price || 0,
+                notes: appt.notes || "",
+                barberId: appt.barber_id || "",
+              });
+            }
+          }
+          lastCheckedTime = new Date().toISOString();
+        }
+      } catch (e) {
+        // ignore polling error
+      }
+    }, 12000);
+
     return () => {
       unsubscribe();
+      clearInterval(pollInterval);
+      if (realtimeChannel && typeof realtimeChannel.unsubscribe === "function") {
+        realtimeChannel.unsubscribe();
+      }
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, [soundEnabled, onAppointmentReceived]);
