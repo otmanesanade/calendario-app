@@ -26,6 +26,11 @@ import {
   Sparkles,
   ArrowUpRight,
   ArrowDownRight,
+  FileSpreadsheet,
+  Copy,
+  Check,
+  ExternalLink,
+  X,
 } from "lucide-react";
 
 const MESES = [
@@ -78,6 +83,12 @@ function CajaContent() {
   const [servicesList, setServicesList] = useState([]);
   const [barber, setBarber] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Estados para Modal de Exportación a Google Sheets / Excel
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportType, setExportType] = useState("mensual");
+  const [exportCopied, setExportCopied] = useState(false);
+  const [exportSuccessMessage, setExportSuccessMessage] = useState(null);
 
   // Sincronizar con parámetros de URL si cambian
   useEffect(() => {
@@ -414,6 +425,202 @@ function CajaContent() {
     window.print();
   }
 
+  // Generar filas estructuradas para Google Sheets / Excel / Gestoría
+  function generateExportRows(type = "mensual") {
+    const isMensual = type === "mensual";
+    const appts = isMensual
+      ? allAppointments.filter((a) => {
+          const d = new Date(a.starts_at);
+          return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+        })
+      : dailyAppointments;
+
+    const salonName = barber?.business_name || "Glowfy Salón";
+    const city = barber?.city || "España";
+    const periodLabel = isMensual
+      ? `${MESES[selectedMonth]} ${selectedYear}`
+      : selectedDate.toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+
+    const rows = [
+      [`INFORME DE CAJA Y FACTURACIÓN - ${salonName.toUpperCase()}`],
+      [
+        `Ubicación: ${city}`,
+        `Período: ${periodLabel}`,
+        `Generado el: ${new Date().toLocaleDateString("es-ES")} ${new Date().toLocaleTimeString("es-ES")}`,
+      ],
+      [],
+    ];
+
+    if (isMensual) {
+      const cur = monthlyStats.currentMonth;
+      const baseEstimada = (cur.ingresos / 1.21).toFixed(2);
+      const ivaEstimado = (cur.ingresos - Number(baseEstimada)).toFixed(2);
+      rows.push([
+        "RESUMEN FISCAL MENSUAL",
+        `Total Facturado: ${cur.ingresos.toFixed(2)} €`,
+        `Bizum: ${cur.bizum.toFixed(2)} €`,
+        `Tarjeta: ${cur.tarjeta.toFixed(2)} €`,
+        `Efectivo: ${cur.efectivo.toFixed(2)} €`,
+        `Base Imponible (21% IVA): ${baseEstimada} €`,
+        `IVA 21% Desglosado: ${ivaEstimado} €`,
+        `Citas Totales: ${cur.citas}`,
+        `Ticket Medio: ${monthlyStats.ticketMedio.toFixed(2)} €`,
+      ]);
+    } else {
+      const dStats = dailyStats;
+      const baseEstimada = (dStats.totalIngresos / 1.21).toFixed(2);
+      const ivaEstimado = (dStats.totalIngresos - Number(baseEstimada)).toFixed(2);
+      rows.push([
+        "RESUMEN DE CAJA DIARIA",
+        `Total Día: ${dStats.totalIngresos.toFixed(2)} €`,
+        `Bizum: ${dStats.totalBizum.toFixed(2)} €`,
+        `Tarjeta: ${dStats.totalTarjeta.toFixed(2)} €`,
+        `Efectivo: ${dStats.totalEfectivo.toFixed(2)} €`,
+        `Propinas: ${dStats.totalPropinas.toFixed(2)} €`,
+        `Base Imponible (21% IVA): ${baseEstimada} €`,
+        `IVA 21%: ${ivaEstimado} €`,
+        `Citas Cobradas: ${dStats.citasCobradas}`,
+      ]);
+    }
+    rows.push([]);
+
+    // Cabecera de columnas
+    rows.push([
+      "Fecha",
+      "Hora",
+      "Cliente",
+      "Teléfono",
+      "Servicio",
+      "Profesional / Sillón",
+      "Método de Pago",
+      "Estado",
+      "Importe Total (€)",
+      "Base Imponible (€)",
+      "IVA 21% (€)",
+      "Propina (€)",
+    ]);
+
+    appts.forEach((a) => {
+      const d = new Date(a.starts_at);
+      const fecha = d.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      const hora = d.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const cliente = a.clients?.full_name || a.client_name || "Cliente";
+      const telefono = a.clients?.phone || a.client_phone || "";
+      const servicio = a.services?.name || a.service_name || "Servicio";
+      const staffName =
+        a.barber_staff?.name ||
+        staffList.find((s) => s.id === a.staff_id)?.name ||
+        "General";
+      const rawMethod = (a.payment_method || "efectivo").toLowerCase();
+      const metodo =
+        rawMethod === "bizum"
+          ? "Bizum"
+          : rawMethod === "tarjeta"
+          ? "Tarjeta"
+          : rawMethod === "gratis_fidelidad"
+          ? "Premio Fidelidad"
+          : "Efectivo";
+      const precio = Number(a.total_price || (a.services && a.services.price) || 0);
+      const base = (precio / 1.21).toFixed(2);
+      const iva = (precio - Number(base)).toFixed(2);
+      const propina = Number(a.tip_amount || 0).toFixed(2);
+      const estado =
+        a.status === "completada" || a.payment_status === "pagado"
+          ? "Cobrado"
+          : a.status === "cancelada"
+          ? "Cancelada"
+          : "Pendiente";
+
+      rows.push([
+        fecha,
+        hora,
+        cliente,
+        telefono,
+        servicio,
+        staffName,
+        metodo,
+        estado,
+        precio.toFixed(2),
+        base,
+        iva,
+        propina,
+      ]);
+    });
+
+    return rows;
+  }
+
+  // Descargar archivo CSV con formato español para Gestoría / Google Sheets
+  function handleDownloadCSV(type = exportType) {
+    const rows = generateExportRows(type);
+    const csvContent = rows
+      .map((row) =>
+        row
+          .map((val) => {
+            const str = String(val ?? "");
+            if (str.includes(";") || str.includes('"') || str.includes("\n")) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          })
+          .join(";")
+      )
+      .join("\r\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const filename =
+      type === "mensual"
+        ? `caja-${MESES[selectedMonth].toLowerCase()}-${selectedYear}-${barber?.slug || "glowfy"}.csv`
+        : `caja-diaria-${selectedDate.toISOString().slice(0, 10)}-${barber?.slug || "glowfy"}.csv`;
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setExportSuccessMessage(
+      `¡Archivo "${filename}" descargado con éxito! Listo para abrir en Google Sheets o enviar a tu gestor.`
+    );
+    setTimeout(() => setExportSuccessMessage(null), 4500);
+  }
+
+  // Copiar TSV directo para pegar en Google Sheets con Ctrl+V
+  function handleCopyForGoogleSheets(type = exportType) {
+    const rows = generateExportRows(type);
+    const tsvContent = rows
+      .map((row) =>
+        row.map((val) => String(val ?? "").replace(/\t/g, " ")).join("\t")
+      )
+      .join("\n");
+
+    navigator.clipboard.writeText(tsvContent).then(() => {
+      setExportCopied(true);
+      setExportSuccessMessage(
+        "¡Copiado con éxito! Ahora abre Google Sheets y pulsa Pegar (Ctrl + V)."
+      );
+      setTimeout(() => {
+        setExportCopied(false);
+        setTimeout(() => setExportSuccessMessage(null), 3000);
+      }, 2500);
+    });
+  }
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Selector de Pestañas: Caja Diaria vs Ingresos Mensuales */}
@@ -532,12 +739,25 @@ function CajaContent() {
 
             <div className="flex items-center gap-2">
               <button
+                type="button"
+                onClick={() => {
+                  setExportType("mensual");
+                  setShowExportModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow transition"
+                title="Exportar informe fiscal a Google Sheets / Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Exportar a Google Sheets</span>
+              </button>
+
+              <button
                 onClick={handlePrintReport}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold transition"
                 title="Imprimir informe para el gestor / asesor fiscal"
               >
                 <Printer className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Imprimir Informe</span>
+                <span>Imprimir</span>
               </button>
             </div>
           </div>
@@ -965,19 +1185,34 @@ function CajaContent() {
               </button>
             </div>
 
-            {/* Enlace rápido a ver el mes completo */}
-            <button
-              onClick={() => {
-                setSelectedMonth(selectedDate.getMonth());
-                setSelectedYear(selectedDate.getFullYear());
-                setActiveTab("mensual");
-                router.replace("/dashboard/caja?tab=mensual");
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              <span>Ver resumen completo del mes ({MESES[selectedDate.getMonth()]})</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setExportType("diaria");
+                  setShowExportModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow transition"
+                title="Exportar cierre del día a Google Sheets / Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Exportar Día a Google Sheets</span>
+              </button>
+
+              {/* Enlace rápido a ver el mes completo */}
+              <button
+                onClick={() => {
+                  setSelectedMonth(selectedDate.getMonth());
+                  setSelectedYear(selectedDate.getFullYear());
+                  setActiveTab("mensual");
+                  router.replace("/dashboard/caja?tab=mensual");
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline px-2 py-1"
+              >
+                <span>Ver resumen mes ({MESES[selectedDate.getMonth()]})</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Métricas Principales de Caja Diaria */}
@@ -1205,6 +1440,131 @@ function CajaContent() {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Exportación a Google Sheets / Excel */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-150">
+            {/* Cabecera */}
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white">
+                    Exportar para Google Sheets & Gestoría
+                  </h2>
+                  <p className="text-xs text-zinc-500">
+                    {exportType === "mensual"
+                      ? `Informe fiscal completo de ${MESES[selectedMonth]} ${selectedYear}`
+                      : `Cierre de caja del ${selectedDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mensaje de Éxito / Feedback */}
+            {exportSuccessMessage && (
+              <div className="mt-4 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in duration-150">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{exportSuccessMessage}</span>
+              </div>
+            )}
+
+            {/* Resumen del Período */}
+            <div className="mt-4 p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 flex items-center justify-between text-xs">
+              <span className="text-zinc-600 dark:text-zinc-400">Total a exportar:</span>
+              <span className="font-extrabold text-sm text-zinc-900 dark:text-white">
+                {exportType === "mensual"
+                  ? `${monthlyStats.currentMonth.ingresos.toFixed(2)} € (${monthlyStats.currentMonth.citas} citas)`
+                  : `${dailyStats.totalIngresos.toFixed(2)} € (${dailyStats.citasCobradas} citas)`}
+              </span>
+            </div>
+
+            {/* Opciones de Exportación */}
+            <div className="mt-4 space-y-3">
+              {/* Opción 1: Descargar archivo CSV */}
+              <button
+                type="button"
+                onClick={() => handleDownloadCSV(exportType)}
+                className="w-full text-left p-4 rounded-2xl border-2 border-emerald-500/40 hover:border-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/70 transition flex items-start justify-between gap-3 group"
+              >
+                <div>
+                  <div className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                    <Download className="w-4 h-4 text-emerald-600" />
+                    <span>Descargar archivo .CSV (Excel & Google Sheets)</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
+                    Archivo preparado para la Gestoría en España con IVA desglosado (21%), Bizum, tarjeta y efectivo. Ideal para mandar por WhatsApp o Email.
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white text-xs font-bold whitespace-nowrap transition shrink-0 mt-1">
+                  Descargar
+                </span>
+              </button>
+
+              {/* Opción 2: Copiar para Google Sheets con Ctrl+V */}
+              <button
+                type="button"
+                onClick={() => handleCopyForGoogleSheets(exportType)}
+                className="w-full text-left p-4 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:border-indigo-500 bg-white dark:bg-zinc-800/60 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition flex items-start justify-between gap-3 group"
+              >
+                <div>
+                  <div className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                    {exportCopied ? (
+                      <Check className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-indigo-600" />
+                    )}
+                    <span>Copiar tabla para pegar (Ctrl + V)</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
+                    Copia todas las filas formateadas al portapapeles. Solo tienes que abrir Google Sheets y pulsar Pegar.
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-700 group-hover:bg-indigo-600 group-hover:text-white text-zinc-700 dark:text-zinc-200 text-xs font-bold whitespace-nowrap transition shrink-0 mt-1">
+                  {exportCopied ? "¡Copiado!" : "Copiar"}
+                </span>
+              </button>
+
+              {/* Opción 3: Abrir Google Sheets en blanco */}
+              <a
+                href="https://sheets.new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full text-left p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  <ExternalLink className="w-4 h-4 text-emerald-600" />
+                  <span>Abrir nueva hoja en blanco en Google Sheets (sheets.new)</span>
+                </div>
+                <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">
+                  Abrir ↗
+                </span>
+              </a>
+            </div>
+
+            {/* Pie del Modal */}
+            <div className="mt-5 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400">
+              <span>Compatible con Google Workspace (@glowfy.es) y Excel</span>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="font-bold text-zinc-600 dark:text-zinc-300 hover:underline"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
