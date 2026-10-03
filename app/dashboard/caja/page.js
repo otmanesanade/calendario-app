@@ -31,6 +31,10 @@ import {
   Check,
   ExternalLink,
   X,
+  Info,
+  Eye,
+  EyeOff,
+  HelpCircle,
 } from "lucide-react";
 
 const MESES = [
@@ -89,6 +93,8 @@ function CajaContent() {
   const [exportType, setExportType] = useState("mensual");
   const [exportCopied, setExportCopied] = useState(false);
   const [exportSuccessMessage, setExportSuccessMessage] = useState(null);
+  const [showDataPreview, setShowDataPreview] = useState(false);
+  const [sheetsHelpOpen, setSheetsHelpOpen] = useState(false);
 
   // Sincronizar con parámetros de URL si cambian
   useEffect(() => {
@@ -597,8 +603,45 @@ function CajaContent() {
     setTimeout(() => setExportSuccessMessage(null), 4500);
   }
 
+  // Copiar al portapapeles con doble método garantizado (navigator + textarea fallback)
+  async function copyTextToClipboard(text) {
+    if (typeof window === "undefined") return false;
+    let ok = false;
+
+    // Método 1: navigator.clipboard
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch (e) {
+        console.warn("navigator.clipboard fallo, intentando fallback:", e);
+      }
+    }
+
+    // Método 2: textarea + execCommand("copy") si el anterior falló o no existe
+    if (!ok && typeof document !== "undefined") {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.top = "-9999px";
+        textArea.style.left = "-9999px";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } catch (e) {
+        console.warn("execCommand fallback fallo:", e);
+      }
+    }
+
+    return ok;
+  }
+
   // Copiar TSV directo para pegar en Google Sheets con Ctrl+V
-  function handleCopyForGoogleSheets(type = exportType) {
+  async function handleCopyForGoogleSheets(type = exportType) {
     const rows = generateExportRows(type);
     const tsvContent = rows
       .map((row) =>
@@ -606,21 +649,21 @@ function CajaContent() {
       )
       .join("\n");
 
-    navigator.clipboard.writeText(tsvContent).then(() => {
-      setExportCopied(true);
-      setExportSuccessMessage(
-        "¡Copiado con éxito! Ahora abre Google Sheets y pulsa Pegar (Ctrl + V)."
-      );
-      setTimeout(() => {
-        setExportCopied(false);
-        setTimeout(() => setExportSuccessMessage(null), 3000);
-      }, 2500);
-    });
+    await copyTextToClipboard(tsvContent);
+    setExportCopied(true);
+    setExportSuccessMessage(
+      "¡Tabla copiada al portapapeles! En Google Sheets pulsa en la casilla A1 y haz Ctrl + V (Pegar)."
+    );
+    setTimeout(() => {
+      setExportCopied(false);
+      setTimeout(() => setExportSuccessMessage(null), 5000);
+    }, 3500);
   }
 
   // Copiar datos y abrir Google Sheets al instante en nueva pestaña (1 solo clic)
-  function handleCopyAndOpenSheets(type = exportType) {
-    handleCopyForGoogleSheets(type);
+  async function handleCopyAndOpenSheets(type = exportType) {
+    await handleCopyForGoogleSheets(type);
+    setSheetsHelpOpen(true);
     if (typeof window !== "undefined") {
       window.open("https://sheets.new", "_blank");
     }
@@ -1452,7 +1495,7 @@ function CajaContent() {
       {/* Modal de Exportación a Google Sheets / Excel */}
       {showExportModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             {/* Cabecera */}
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-3">
@@ -1486,6 +1529,50 @@ function CajaContent() {
               </div>
             )}
 
+            {/* Banner de Ayuda Visual: Cómo pegar en Google Sheets (sheets.new) */}
+            {sheetsHelpOpen && (
+              <div className="mt-4 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 animate-in fade-in duration-200 shadow-xs">
+                <div className="flex items-center justify-between gap-2 font-black text-sm text-amber-950 dark:text-amber-100 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>¿Por qué Google Sheets se abre en blanco?</span>
+                  </div>
+                  <button
+                    onClick={() => setSheetsHelpOpen(false)}
+                    className="text-[10px] text-amber-700 hover:text-amber-900 dark:text-amber-300 font-bold px-2 py-0.5 rounded bg-amber-200/60 dark:bg-amber-800/40"
+                  >
+                    Cerrar aviso
+                  </button>
+                </div>
+                <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                  Google siempre abre una hoja nueva vacía por seguridad. <strong>¡Tus datos ya están copiados en el portapapeles!</strong>
+                </p>
+                <div className="mt-2.5 bg-white/95 dark:bg-zinc-900/90 p-3 rounded-xl border border-amber-200 dark:border-amber-800 text-xs space-y-2">
+                  <div className="flex items-start gap-2.5 font-bold text-zinc-900 dark:text-white">
+                    <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] shrink-0 mt-0.5">1</span>
+                    <span>En la pestaña de Google Sheets, haz clic en la primera casilla <strong>A1</strong> (arriba a la izquierda).</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 font-bold text-zinc-900 dark:text-white">
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] shrink-0 mt-0.5">2</span>
+                    <span>Pulsa en tu teclado <kbd className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-[11px]">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-[11px]">V</kbd> (o clic derecho con el ratón ➜ <em>Pegar</em>).</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold pl-7">
+                    ✨ ¡Verás cómo aparece automáticamente toda la tabla con fecha, cliente, Bizum, IVA 21% y totales!
+                  </p>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between text-[11px]">
+                  <span className="text-amber-700 dark:text-amber-400">¿Prefieres no tener que pulsar Ctrl + V?</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCSV(exportType)}
+                    className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    ➜ Descarga el archivo .CSV listo
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Resumen del Período */}
             <div className="mt-4 p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 flex items-center justify-between text-xs">
               <span className="text-zinc-600 dark:text-zinc-400">Total a exportar:</span>
@@ -1498,7 +1585,7 @@ function CajaContent() {
 
             {/* Opciones de Exportación */}
             <div className="mt-4 space-y-3">
-              {/* Opción 1: El botón estrella 1-Clic: Copiar datos y abrir Google Sheets */}
+              {/* Opción 1: Copiar datos y abrir Google Sheets (con instrucciones paso a paso) */}
               <button
                 type="button"
                 onClick={() => handleCopyAndOpenSheets(exportType)}
@@ -1513,14 +1600,14 @@ function CajaContent() {
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-600 dark:text-zinc-300 mt-1.5 leading-snug">
-                    Copia la tabla completa al portapapeles y abre una hoja en blanco en tu Google Workspace. ¡Solo tendrás que hacer clic en la casilla <strong>A1</strong> y pulsar <strong>Pegar (Ctrl+V)</strong>!
+                    Copia la tabla al portapapeles y abre una hoja en tu Google Workspace. En la hoja pulsa la casilla <strong>A1</strong> y haz <strong>Pegar (Ctrl+V)</strong>.
                   </p>
 
                   {/* Pasos visuales claros */}
                   <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-white/80 dark:bg-zinc-800/80 p-1.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800">
                     <span>1. Clic aquí</span>
                     <span>➜</span>
-                    <span>2. En Google Sheets pulsa A1</span>
+                    <span>2. En Sheets pulsa A1</span>
                     <span>➜</span>
                     <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded">3. Pulsa Ctrl + V</span>
                   </div>
@@ -1531,22 +1618,25 @@ function CajaContent() {
                 </span>
               </button>
 
-              {/* Opción 2: Descargar archivo CSV para Gestoría / Excel */}
+              {/* Opción 2: Descargar archivo CSV para Gestoría / Excel (Sin tener que pegar) */}
               <button
                 type="button"
                 onClick={() => handleDownloadCSV(exportType)}
-                className="w-full text-left p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 bg-zinc-50/60 dark:bg-zinc-800/40 hover:bg-zinc-100/60 transition flex items-start justify-between gap-3 group"
+                className="w-full text-left p-3.5 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 hover:border-indigo-300 dark:hover:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/20 hover:bg-indigo-50/70 transition flex items-start justify-between gap-3 group"
               >
                 <div>
                   <div className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white flex items-center gap-2">
-                    <Download className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-                    <span>Descargar archivo .CSV (Para mandar por WhatsApp/Email al Gestor)</span>
+                    <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <span>Descargar archivo .CSV (¡Abre directo con todos los datos!)</span>
+                    <span className="px-1.5 py-0.2 rounded-md bg-indigo-600 text-white text-[9px] font-bold">
+                      Directo
+                    </span>
                   </div>
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug">
-                    Archivo estándar con IVA (21%), Bizum, tarjeta y efectivo. En Google Sheets también puedes ir a <em>Archivo ➜ Importar ➜ Subir este CSV</em>.
+                    Archivo listo para abrir con doble clic en Excel o subir a Google Sheets (<em>Archivo ➜ Importar</em>). <strong>No necesitas hacer Ctrl + V</strong>.
                   </p>
                 </div>
-                <span className="px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 text-xs font-bold whitespace-nowrap transition shrink-0 mt-0.5">
+                <span className="px-2.5 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold whitespace-nowrap transition shrink-0 mt-0.5 shadow-xs">
                   Descargar .CSV
                 </span>
               </button>
@@ -1559,12 +1649,75 @@ function CajaContent() {
               >
                 <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Solo copiar tabla al portapapeles (sin abrir pestaña)</span>
+                  <span>Solo copiar tabla al portapapeles (sin abrir nueva pestaña)</span>
                 </div>
                 <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
                   {exportCopied ? "¡Copiado!" : "Copiar"}
                 </span>
               </button>
+            </div>
+
+            {/* Botón para Previsualizar la Tabla de Datos directamente */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowDataPreview(!showDataPreview)}
+                className="w-full py-2.5 px-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between transition"
+              >
+                <div className="flex items-center gap-2">
+                  {showDataPreview ? (
+                    <EyeOff className="w-4 h-4 text-zinc-500" />
+                  ) : (
+                    <Eye className="w-4 h-4 text-indigo-600" />
+                  )}
+                  <span>
+                    {showDataPreview
+                      ? "Ocultar previsualización de la tabla"
+                      : "👁️ Ver y revisar los datos aquí mismo en Glowfy"}
+                  </span>
+                </div>
+                <span className="text-[10px] text-zinc-400 font-normal">
+                  {showDataPreview ? "Cerrar" : "Ver tabla completa"}
+                </span>
+              </button>
+
+              {showDataPreview && (
+                <div className="mt-2.5 p-3 bg-zinc-50 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200 dark:border-zinc-700 max-h-56 overflow-auto text-xs">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
+                      Vista previa de los datos a exportar:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyForGoogleSheets(exportType)}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold hover:bg-indigo-700 flex items-center gap-1 transition"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copiar Todo</span>
+                    </button>
+                  </div>
+                  <table className="w-full text-[10px] text-left border-collapse">
+                    <tbody>
+                      {generateExportRows(exportType).map((row, rIdx) => (
+                        <tr
+                          key={rIdx}
+                          className={`border-b border-zinc-200 dark:border-zinc-700/60 ${
+                            rIdx === 0 || rIdx === 3 || rIdx === 5
+                              ? "font-bold bg-zinc-100 dark:bg-zinc-700/40 text-zinc-900 dark:text-white"
+                              : "text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700/20"
+                          }`}
+                        >
+                          {row.map((cell, cIdx) => (
+                            <td key={cIdx} className="p-1.5 whitespace-nowrap">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Pie del Modal */}
